@@ -49,6 +49,49 @@ Spawn faces north (−Z) down a long open runway. Grid lines every 1 m, orange e
 - **North-west:** a 1.3 m tunnel you must crouch through.
 - Fall off the world and you respawn at the start.
 
+## Grenades
+
+**Double-tap:** press once to prime (fuse starts, beeps begin), press the same key again to throw. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
+
+Beeps: one per second, then four fast beeps in the final second. The HUD timer flashes red in the last second while the grenade is still in your hand.
+
+| Setting | Value | Source |
+| --- | --- | --- |
+| `fuse_time` | 3.0 s | Our choice (TFC conc: 3.81 s) |
+| `throw_speed` | 20.625 m/s | TFC/Momentum 660 ups |
+| `throw_pitch_up_deg` | 18.5° | TFC/Momentum |
+| `inherit_velocity` | 0 | TFC (thrown grenades don't carry your speed) |
+| Grenade gravity / bounce | 0.8 × gravity / 0.6 | TFC/Momentum |
+| `frag_damage` / `frag_radius` | 100 / 6.875 m | Radius from TFC (220 u) |
+| `frag_knockback` | 0.25 m/s per damage point | Quake (8 ups per point) |
+| `self_damage_scale` | 0.5 | Our choice |
+| `conc_radius` | 8.75 m | TFC (280 u) |
+| `hh_lateral_power` / `hh_vertical_power` | 2.74 / 4.1 | TFC |
+| `hh_min_up_speed` | 4 m/s (128 ups) | Fortress Forever-style assist, our value |
+
+### Conc physics
+
+**Thrown/drop conc (TFC formula):** the conc *sets* your velocity based on your offset from it. In meters, with `h` = horizontal offset, `z` = vertical offset, `d` = total distance:
+
+- horizontal = h × (8.4 − 0.48 d)
+- vertical = z × (12.6 − 0.72 d)
+
+Push grows with distance, so the best launch is near the edge of the 8.75 m radius.
+
+**Handheld conc (held past the fuse, or a thrown conc within 0.5 m):** multiplies the velocity you already have. Horizontal × 2.74, vertical × 4.1, and vertical is always at least 4 m/s (the FF-style assist). A handheld only moves the person holding it. The skill is jumping, and moving, at the instant it pops.
+
+Verified in headless simulation:
+
+| Case | Result |
+| --- | --- |
+| Handheld, standing still | 0 horizontal, 116 ups up (assist hop) |
+| Handheld at the moment you jump, bhopping at 480 ups | 1315 ups horizontal, 1107 ups up |
+| Drop conc 2 m away, 45° below | 337 horizontal / 505 up |
+| Drop conc 8.7 m away (edge) | 832 horizontal / 1247 up |
+| Handheld frag | 50 HP lost, 788 ups straight up |
+
+A green **resupply pad** right of spawn refills health and grenades. Dying also refills them.
+
 ## Controls
 
-E/D/S/F move · Space jump · Mouse 4 crouch · Esc frees the mouse, click to recapture.
+E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 frag (tap to prime, tap to throw) · Q conc (same) · Esc frees the mouse, click to recapture.

@@ -47,6 +47,9 @@ const QUAKE_UNITS_PER_METER := 32.0
 @export var stand_eye_height := 1.6
 @export var crouch_eye_height := 0.95
 
+@export_group("Health")
+@export var max_health := 100.0
+
 @export_group("Mouse")
 ## Degrees of turn per pixel of mouse movement (like Quake's m_yaw 0.022 x sens).
 @export var mouse_sensitivity := 0.1
@@ -54,13 +57,19 @@ const QUAKE_UNITS_PER_METER := 32.0
 @onready var collision: CollisionShape3D = $CollisionShape3D
 @onready var head: Node3D = $Head
 @onready var speed_label: Label = $HUD/Speed
+@onready var grenades: GrenadeThrower = $Grenades
 
 var crouched := false
+var health := 100.0
 var spawn_transform: Transform3D
+## Set by explosions so the next tick treats you as airborne, even if you
+## were standing on the floor when the blast hit.
+var _launched := false
 
 
 func _ready() -> void:
 	spawn_transform = global_transform
+	health = max_health
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_apply_hull(stand_height)
 	head.position.y = stand_eye_height
@@ -91,12 +100,15 @@ func _physics_process(delta: float) -> void:
 	if input == Vector2.ZERO:
 		wish_speed = 0.0
 
-	if is_on_floor() and _wants_jump():
+	var on_ground := is_on_floor() and not _launched
+	_launched = false
+
+	if on_ground and _wants_jump():
 		# Jump before friction is applied: landing and jumping on the same
 		# tick keeps all your speed. This is what makes bhopping possible.
 		velocity.y = jump_velocity
 		_air_move(wish_dir, wish_speed, delta)
-	elif is_on_floor():
+	elif on_ground:
 		_apply_friction(delta)
 		_accelerate(wish_dir, wish_speed, ground_accelerate, delta)
 		velocity.y = 0.0
@@ -210,9 +222,30 @@ func _apply_hull(height: float) -> void:
 	collision.position.y = height * 0.5
 
 
+## Middle of the player's hull, which is what explosions measure distance to.
+func center() -> Vector3:
+	return global_position + Vector3.UP * collision.position.y
+
+
+## Explosions call this to replace your velocity.
+func launch(new_velocity: Vector3) -> void:
+	velocity = new_velocity
+	_launched = true
+
+
+func take_damage(amount: float) -> void:
+	health -= amount
+	if health <= 0.0:
+		grenades.drop_held()
+		respawn()
+
+
 func respawn() -> void:
 	global_transform = spawn_transform
 	velocity = Vector3.ZERO
+	health = max_health
+	if is_node_ready():
+		grenades.refill()
 
 
 func _update_hud() -> void:
