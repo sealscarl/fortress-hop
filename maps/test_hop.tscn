@@ -1,0 +1,134 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://player/player.tscn" id="1_player"]
+[ext_resource type="Shader" path="res://shaders/grid.gdshader" id="2_grid"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grid"]
+render_priority = 0
+shader = ExtResource("2_grid")
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+tonemap_mode = 2
+ssao_enabled = true
+
+[node name="TestHop" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 20, 0)
+shadow_enabled = true
+
+[node name="Geometry" type="CSGCombiner3D" parent="."]
+use_collision = true
+
+[node name="Floor" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 0.0000, -0.5000, 0.0000)
+size = Vector3(160.0000, 1.0000, 160.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="WallN" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 0.0000, 4.0000, -80.5000)
+size = Vector3(160.0000, 8.0000, 1.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="WallS" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 0.0000, 4.0000, 80.5000)
+size = Vector3(160.0000, 8.0000, 1.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="WallE" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 80.5000, 4.0000, 0.0000)
+size = Vector3(1.0000, 8.0000, 160.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="WallW" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, -80.5000, 4.0000, 0.0000)
+size = Vector3(1.0000, 8.0000, 160.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Ramp20" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 0.939693, -0.342020, 0, 0.342020, 0.939693, -30.0000, 1.2340, 15.8788)
+size = Vector3(6.0000, 0.5000, 8.7714)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="RampDeck" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, -30.0000, 1.5000, 6.7576)
+size = Vector3(6.0000, 3.0000, 10.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Surf50" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 0.642788, -0.766044, 0, 0.766044, 0.642788, -50.0000, 2.6111, 27.4827)
+size = Vector3(8.0000, 0.5000, 7.8324)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="GapStart" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, 30.0000)
+size = Vector3(4.0000, 2.0000, 6.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Gap3m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, 22.0000)
+size = Vector3(4.0000, 2.0000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Gap4m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, 14.0000)
+size = Vector3(4.0000, 2.0000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Gap5m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, 5.0000)
+size = Vector3(4.0000, 2.0000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Gap6m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, -5.0000)
+size = Vector3(4.0000, 2.0000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Gap7m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, -16.0000)
+size = Vector3(4.0000, 2.0000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Gap8m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 30.0000, 1.0000, -28.0000)
+size = Vector3(4.0000, 2.0000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Ledge1_2m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 55.0000, 0.6000, 0.0000)
+size = Vector3(8.0000, 1.2000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Ledge1_9m" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, 55.0000, 0.9500, -15.0000)
+size = Vector3(8.0000, 1.9000, 4.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="TunnelRoof" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, -10.0000, 1.5500, -40.0000)
+size = Vector3(4.0000, 0.5000, 12.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="TunnelL" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, -12.2500, 0.6500, -40.0000)
+size = Vector3(0.5000, 1.3000, 12.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="TunnelR" type="CSGBox3D" parent="Geometry"]
+transform = Transform3D(1, 0, 0, 0, 1.000000, -0.000000, 0, 0.000000, 1.000000, -7.7500, 0.6500, -40.0000)
+size = Vector3(0.5000, 1.3000, 12.0000)
+material = SubResource("ShaderMaterial_grid")
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 60)
