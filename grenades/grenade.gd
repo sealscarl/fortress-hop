@@ -25,7 +25,6 @@ static func spawn(p_thrower: GrenadeThrower, p_type: Type, pos: Vector3,
 	p_thrower.get_tree().current_scene.add_child(g)
 	g.global_position = pos
 	g.linear_velocity = vel
-	g.angular_velocity = Vector3(randf_range(-7, 7), randf_range(-7, 7), randf_range(-7, 7))
 	return g
 
 
@@ -40,7 +39,9 @@ func _init() -> void:
 	mat.bounce = 0.6
 	mat.friction = 0.6
 	physics_material_override = mat
-	angular_damp = 1.5
+	# No spinning: a spinning sphere rolls for ages. Locked, it slides and
+	# friction stops it quickly, like TFC grenades. Bounce is unchanged.
+	lock_rotation = true
 
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()

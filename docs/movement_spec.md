@@ -51,7 +51,7 @@ Spawn faces north (−Z) down a long open runway. Grid lines every 1 m, orange e
 
 ## Grenades
 
-**Double-tap:** press once to prime (fuse starts, beeps begin), press the same key again to throw. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
+**Double-tap:** press once to prime (fuse starts, beeps begin), press either grenade key to throw it. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
 
 Beeps: one per second, then four fast beeps in the final second. The HUD timer flashes red in the last second while the grenade is still in your hand.
 
@@ -62,12 +62,15 @@ Beeps: one per second, then four fast beeps in the final second. The HUD timer f
 | `throw_pitch_up_deg` | 18.5° | TFC/Momentum |
 | `inherit_velocity` | 0 | TFC (thrown grenades don't carry your speed) |
 | Grenade gravity / bounce | 0.8 × gravity / 0.6 | TFC/Momentum |
+| Grenade rolling | Off (rotation locked; slides to a stop) | Our choice, for aim precision |
 | `frag_damage` / `frag_radius` | 100 / 6.875 m | Radius from TFC (220 u) |
 | `frag_knockback` | 0.25 m/s per damage point | Quake (8 ups per point) |
 | `self_damage_scale` | 0.5 | Our choice |
+| `hh_frag_push` | 31.25 m/s (1000 ups) | Our choice |
 | `conc_radius` | 8.75 m | TFC (280 u) |
 | `hh_lateral_power` / `hh_vertical_power` | 2.74 / 4.1 | TFC |
-| `hh_min_up_speed` | 4 m/s (128 ups) | Fortress Forever-style assist, our value |
+| `hh_min_up_speed` | 10 m/s (320 ups) | Fortress Forever-style assist, our value |
+| `conc_max_horizontal_speed` | 43.75 m/s (1400 ups) | Our cap; TFC had none |
 
 ### Conc physics
 
@@ -78,20 +81,28 @@ Beeps: one per second, then four fast beeps in the final second. The HUD timer f
 
 Push grows with distance, so the best launch is near the edge of the 8.75 m radius.
 
-**Handheld conc (held past the fuse, or a thrown conc within 0.5 m):** multiplies the velocity you already have. Horizontal × 2.74, vertical × 4.1, and vertical is always at least 4 m/s (the FF-style assist). A handheld only moves the person holding it. The skill is jumping, and moving, at the instant it pops.
+**Cap:** after any conc, horizontal speed is capped at 1400 ups so chained handhelds can't snowball (before the cap, two handhelds reached 3600+ ups).
+
+**Handheld frag:** pushes you 1000 ups along the way you're already moving, plus 50 HP damage. Upward motion counts, so jump first for height; falling doesn't, so it never drives you into the floor. Standing still sends you straight up.
+
+**Handheld conc (held past the fuse, or a thrown conc within 0.5 m):** multiplies the velocity you already have. Horizontal × 2.74, vertical × 4.1, and vertical is always at least 10 m/s / 320 ups (the FF-style assist). A handheld only moves the person holding it. The skill is jumping, and moving, at the instant it pops.
 
 Verified in headless simulation:
 
 | Case | Result |
 | --- | --- |
-| Handheld, standing still | 0 horizontal, 116 ups up (assist hop) |
-| Handheld at the moment you jump, bhopping at 480 ups | 1315 ups horizontal, 1107 ups up |
+| Handheld conc, standing still | 0 horizontal, about 300 ups up (assist hop) |
+| Handheld conc at the moment you jump, bhopping at 480 ups | 1315 ups horizontal, 1107 ups up |
+| Second handheld conc right after | 1400 ups horizontal (capped), 1107 ups up |
+| Handheld conc mistimed near the top of a jump, moving 320 ups | 877 horizontal, 320 up |
 | Drop conc 2 m away, 45° below | 337 horizontal / 505 up |
 | Drop conc 8.7 m away (edge) | 832 horizontal / 1247 up |
-| Handheld frag | 50 HP lost, 788 ups straight up |
+| Handheld frag, standing still | 1000 ups straight up, 50 HP |
+| Handheld frag, jumping forward at 320 ups | 1084 horizontal, 915 up |
+| Handheld frag, running on the ground | 1320 horizontal, 0 up |
 
 A green **resupply pad** right of spawn refills health and grenades. Dying also refills them.
 
 ## Controls
 
-E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 frag (tap to prime, tap to throw) · Q conc (same) · Esc frees the mouse, click to recapture.
+E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 primes a frag · Q primes a conc · either key throws what you're holding · Esc frees the mouse, click to recapture.

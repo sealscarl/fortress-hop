@@ -33,6 +33,9 @@ const CONC_SOUND := preload("res://sounds/explode_conc.wav")
 @export var frag_knockback := 0.25
 ## Your own frags hurt you this much (grenade jumps cost health, not a life).
 @export var self_damage_scale := 0.5
+## Handheld frag push (m/s), aimed along the way you're already moving
+## rather than straight up. 31.25 m/s = 1000 ups.
+@export var hh_frag_push := 31.25
 
 @export_group("Conc (thrown)")
 ## TFC: 280 units.
@@ -47,8 +50,13 @@ const CONC_SOUND := preload("res://sounds/explode_conc.wav")
 @export var hh_vertical_power := 4.1
 ## Fortress Forever-style assist: a handheld always sends you up at least
 ## this fast, even if you were standing still or falling. TFC: none (0),
-## so a mistimed handheld could slam you into the floor.
-@export var hh_min_up_speed := 4.0
+## so a mistimed handheld could slam you into the floor. 10 m/s = 320 ups.
+@export var hh_min_up_speed := 10.0
+
+@export_group("Conc (both)")
+## Horizontal speed cap after any conc, so chained handhelds can't snowball.
+## 43.75 m/s = 1400 ups (what the speedometer shows). 0 = no cap (TFC).
+@export var conc_max_horizontal_speed := 43.75
 
 signal changed  ## Counts, prime state or timer changed (for the HUD).
 
@@ -88,19 +96,20 @@ func _physics_process(delta: float) -> void:
 	if timer_left <= 0.0:
 		if held_type != -1:
 			# Held too long: it goes off in your hand.
-			var t := held_type
+			var t: Grenade.Type = held_type
 			held_type = -1
 			detonate(t, player.center(), true)
 		timer_type = -1
 	changed.emit()
 
 
+## Either grenade key throws whatever you're holding; with nothing in hand,
+## the key primes its own grenade type.
 func _press(type: Grenade.Type) -> void:
 	if held_type == -1:
 		_prime(type)
-	elif held_type == type:
+	else:
 		_throw()
-	# Pressing the other grenade key while one is primed does nothing (TFC).
 
 
 func _prime(type: Grenade.Type) -> void:
@@ -153,21 +162,32 @@ func drop_held() -> void:
 func detonate(type: Grenade.Type, origin: Vector3, handheld: bool) -> void:
 	_spawn_effect(type, origin)
 	if type == Grenade.Type.FRAG:
-		_frag_explode(origin)
+		_frag_explode(origin, handheld)
 	else:
 		_conc_explode(origin, handheld)
 
 
-func _frag_explode(origin: Vector3) -> void:
+func _frag_explode(origin: Vector3, handheld: bool) -> void:
 	for p: Player in get_tree().get_nodes_in_group("player"):
 		var offset := p.center() - origin
 		var dist := offset.length()
 		if dist > frag_radius:
 			continue
 		var points := frag_damage * (1.0 - dist / frag_radius)
-		var dir := offset / dist if dist > 0.05 else Vector3.UP
-		p.launch(p.velocity + dir * points * frag_knockback)
+		if handheld and p == player:
+			p.launch(p.velocity + _handheld_frag_dir(p.velocity) * hh_frag_push)
+		else:
+			var dir := offset / dist if dist > 0.05 else Vector3.UP
+			p.launch(p.velocity + dir * points * frag_knockback)
 		p.take_damage(points * (self_damage_scale if p == player else 1.0))
+
+
+## A frag in your hand pushes you the way you're already going. Upward
+## motion counts (so jump first if you want height); falling doesn't, so it
+## never drives you into the floor. Standing still: straight up.
+func _handheld_frag_dir(v: Vector3) -> Vector3:
+	var dir := Vector3(v.x, maxf(v.y, 0.0), v.z)
+	return dir.normalized() if dir.length() > 0.5 else Vector3.UP
 
 
 func _conc_explode(origin: Vector3, handheld: bool) -> void:
@@ -179,10 +199,20 @@ func _conc_explode(origin: Vector3, handheld: bool) -> void:
 		# A conc that went off in someone's hand only moves that person.
 		if handheld and p != player:
 			continue
+		var v: Vector3
 		if (handheld and p == player) or dist < conc_handheld_distance:
-			p.launch(_handheld_velocity(p.velocity))
+			v = _handheld_velocity(p.velocity)
 		else:
-			p.launch(_thrown_conc_velocity(offset))
+			v = _thrown_conc_velocity(offset)
+		p.launch(_cap_horizontal(v, conc_max_horizontal_speed))
+
+
+func _cap_horizontal(v: Vector3, cap: float) -> Vector3:
+	var h := Vector2(v.x, v.z)
+	if cap <= 0.0 or h.length() <= cap:
+		return v
+	h = h.normalized() * cap
+	return Vector3(h.x, v.y, h.y)
 
 
 ## TFC drop/thrown conc. Push grows with distance, peaking near the edge of
