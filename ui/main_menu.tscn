@@ -51,6 +51,15 @@ theme_override_font_sizes/font_size = 20
 max_length = 24
 placeholder_text = "Player"
 
+[node name="MapLabel" type="Label" parent="Center/Box"]
+layout_mode = 2
+text = "Map (when hosting)"
+
+[node name="Map" type="OptionButton" parent="Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
 [node name="Host" type="Button" parent="Center/Box"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)

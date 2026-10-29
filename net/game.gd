@@ -31,7 +31,6 @@ const LAG_COMP_TICKS := 128      ## Rewind up to 1 s for hitscan checks.
 static var instance: Game
 
 @onready var players_root: Node3D = $"../Players"
-@onready var spawner: MultiplayerSpawner = $"../PlayerSpawner"
 
 var tick := 0
 
@@ -40,6 +39,8 @@ var _cmd_queue := {}      ## peer id -> Array[PlayerCmd] waiting to run
 var _last_queued := {}    ## peer id -> highest seq queued
 var _last_run := {}       ## peer id -> seq of the last command run
 var _next_grenade_id := 1
+## Clients that have loaded the map and can receive game events.
+var ready_peers: Array[int] = []
 var _pos_history := {}    ## server tick -> {peer id: [hull center, half segment]}
 var _pipes := {}          ## peer id -> Array[Bomb] (oldest first)
 var _damage_batch := {}   ## attacker peer -> {victim peer: amount} this tick
@@ -66,29 +67,49 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
-	spawner.spawn_function = _spawn_player
 	if not (multiplayer.is_server() and get_node("/root/Net").dedicated):
 		ui = GAME_UI.new()
 		add_child(ui)
-	if not multiplayer.is_server():
-		# Tell the server our name as soon as we're connected (the map loads
-		# before the connection finishes).
-		if multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
-			_send_name.call_deferred()
-		else:
-			multiplayer.connected_to_server.connect(_send_name, CONNECT_ONE_SHOT)
 	if multiplayer.is_server():
-		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 		if not get_node("/root/Net").dedicated:
-			_on_peer_connected(1)  # The host plays too.
-		for id in multiplayer.get_peers():
-			_on_peer_connected(id)
+			_add_player(1, get_node("/root/Net").player_name)  # The host plays too.
+	else:
+		# The map is loaded: tell the server we're ready to play.
+		_client_ready.rpc_id(1, get_node("/root/Net").player_name)
+
+
+## Server: send an RPC to every client that has loaded the map (and run it
+## here too if local is true). Clients still loading never get events for
+## nodes they don't have yet.
+func send_all(obj: Object, method: StringName, args: Array = [], local := true) -> void:
+	for peer in ready_peers:
+		multiplayer.rpc(peer, obj, method, args)
+	if local:
+		obj.callv(method, args)
 
 
 # --- Spawning -----------------------------------------------------------------
 
-func _on_peer_connected(id: int) -> void:
+## Server: a client finished loading the map.
+@rpc("any_peer", "call_remote", "reliable")
+func _client_ready(player_name: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if id in ready_peers or not multiplayer.is_server():
+		return
+	ready_peers.append(id)
+	# Everyone already here, then the newcomer for everyone.
+	var all := []
+	for p: Player in players_root.get_children():
+		all.append(_spawn_data(p))
+	_spawn_players.rpc_id(id, all)
+	_add_player(id, player_name)
+	if MapLogic.instance:
+		MapLogic.instance.send_full_state(id)
+
+
+## Server: create a player and tell every ready client about it.
+func _add_player(id: int, player_name: String) -> void:
 	if players_root.has_node(str(id)):
 		return
 	var team := _smaller_team()
@@ -96,11 +117,17 @@ func _on_peer_connected(id: int) -> void:
 	var at: Node3D = spawns.pick_random() if spawns.size() else null
 	var pos := at.global_position if at else Vector3(0, 0.1, 60)
 	var yaw := at.rotation.y if at else 0.0
-	scores[id] = {"name": "Player %d" % (scores.size() + 1), "kills": 0, "deaths": 0}
-	if id == 1:
-		scores[id].name = get_node("/root/Net").player_name
-	spawner.spawn([id, pos, yaw, team])
-	_sync_scores.rpc(scores)
+	var n := player_name.strip_edges().substr(0, 24)
+	scores[id] = {"name": n if n else "Player %d" % (scores.size() + 1), "kills": 0, "deaths": 0}
+	var data := [id, pos, yaw, team]
+	_spawn_player(data)
+	for peer in ready_peers:
+		_spawn_players.rpc_id(peer, [data])
+	send_all(self, "_sync_scores", [scores])
+
+
+func _spawn_data(p: Player) -> Array:
+	return [p.peer_id, p.global_position, p.rotation.y, p.team]
 
 
 func _smaller_team() -> int:
@@ -111,18 +138,37 @@ func _smaller_team() -> int:
 
 
 func _on_peer_disconnected(id: int) -> void:
+	ready_peers.erase(id)
 	var p := players_root.get_node_or_null(str(id))
 	if p:
+		p.grenades.drop_held()
+		if MapLogic.instance:
+			MapLogic.instance.on_player_gone(p)
 		p.queue_free()
 	_cmd_queue.erase(id)
 	_last_queued.erase(id)
 	_last_run.erase(id)
 	scores.erase(id)
-	_sync_scores.rpc(scores)
+	send_all(self, "_despawn_player", [id], false)
+	send_all(self, "_sync_scores", [scores])
 
 
-## Runs on the server and on every client (MultiplayerSpawner replicates it).
-func _spawn_player(data: Array) -> Node:
+@rpc("authority", "call_remote", "reliable")
+func _spawn_players(list: Array) -> void:
+	for data in list:
+		if not players_root.has_node(str(data[0])):
+			_spawn_player(data)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _despawn_player(id: int) -> void:
+	var p := players_root.get_node_or_null(str(id))
+	if p:
+		p.queue_free()
+	_interp.erase(id)
+
+
+func _spawn_player(data: Array) -> Player:
 	var p: Player = PLAYER_SCENE.instantiate()
 	p.peer_id = data[0]
 	p.name = str(data[0])
@@ -133,6 +179,7 @@ func _spawn_player(data: Array) -> Node:
 	p.is_local = data[0] == multiplayer.get_unique_id()
 	if p.is_local:
 		local_player = p
+	players_root.add_child(p)
 	return p
 
 
@@ -224,7 +271,7 @@ func _send_snapshots() -> void:
 	for p: Player in players_root.get_children():
 		everyone.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouched,
 			p.team, p.class_id, p.alive])
-	for id in multiplayer.get_peers():
+	for id in ready_peers:
 		var p := players_root.get_node_or_null(str(id)) as Player
 		if p == null:
 			continue
@@ -337,7 +384,7 @@ func spawn_grenade(thrower: GrenadeThrower, type: Grenade.Type, pos: Vector3,
 		vel: Vector3, fuse: float) -> void:
 	var id := _new_projectile_id()
 	_add_grenade(Grenade.create(type, fuse, thrower, id), pos, vel)
-	_show_grenade.rpc(id, type, pos, vel)
+	send_all(self, "_show_grenade", [id, type, pos, vel], false)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -361,7 +408,7 @@ func _new_projectile_id() -> int:
 
 ## Server: an explosion happened. Show it everywhere.
 func announce_explosion(grenade_id: int, type: Grenade.Type, origin: Vector3, radius: float) -> void:
-	_explosion.rpc(grenade_id, type, origin, radius)
+	send_all(self, "_explosion", [grenade_id, type, origin, radius])
 
 
 @rpc("authority", "call_local", "reliable")
@@ -384,7 +431,7 @@ func spawn_projectile(shooter: Player, kind: int, pos: Vector3, vel: Vector3) ->
 	var r := Rocket.create(shooter, kind, vel, id)
 	r.position = pos
 	get_parent().add_child(r)
-	_show_projectile.rpc(id, kind, pos, vel)
+	send_all(self, "_show_projectile", [id, kind, pos, vel], false)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -408,7 +455,7 @@ func spawn_bomb(shooter: Player, kind: int, pos: Vector3, vel: Vector3) -> void:
 		_pipes[shooter.peer_id] = mine
 		if mine.size() > WeaponStats.get_stat(kind, "max_active"):
 			mine.pop_front().explode()   # Too many out: the oldest goes off.
-	_show_bomb.rpc(id, kind, pos, vel, shooter.peer_id)
+	send_all(self, "_show_bomb", [id, kind, pos, vel, shooter.peer_id], false)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -483,7 +530,7 @@ func hitscan(shooter: Player, origin: Vector3, dirs: Array[Vector3], max_range: 
 	for p: Player in damage:
 		var dir := (p.center() - origin).normalized()
 		p.hurt(damage[p], shooter, dir * damage[p] * knockback)
-	_tracers.rpc(origin, ends)
+	send_all(self, "_tracers", [origin, ends])
 
 
 ## Tracer lines and impact puffs, on every machine.
@@ -575,6 +622,8 @@ func _do_team(peer: int, t: int) -> void:
 	if t == p.team:
 		return
 	p.grenades.drop_held()
+	if MapLogic.instance:
+		MapLogic.instance.on_player_died(p)   # Switching team drops a carried flag.
 	p.set_team(t)
 	if p.alive:
 		p.respawn()
@@ -596,31 +645,17 @@ func _do_class(peer: int, c: int) -> void:
 		p.pending_class = c
 
 
-func _send_name() -> void:
-	_set_name.rpc_id(1, get_node("/root/Net").player_name)
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _set_name(n: String) -> void:
-	var peer := multiplayer.get_remote_sender_id()
-	n = n.strip_edges().substr(0, 24)
-	if n.is_empty() or not scores.has(peer):
-		return
-	scores[peer].name = n
-	_sync_scores.rpc(scores)
-
-
 ## Server: someone died. Count it and tell everyone.
 func on_death(victim: Player, killer: Player) -> void:
 	if scores.has(victim.peer_id):
 		scores[victim.peer_id].deaths += 1
 	if killer and killer != victim and scores.has(killer.peer_id):
 		scores[killer.peer_id].kills += 1
-	_sync_scores.rpc(scores)
+	send_all(self, "_sync_scores", [scores])
 	var kname: String = scores[killer.peer_id].name if killer and scores.has(killer.peer_id) else ""
 	var vname: String = scores[victim.peer_id].name if scores.has(victim.peer_id) else "?"
-	_kill_feed.rpc(kname if killer != victim else "", vname,
-		killer.team if killer else -1, victim.team)
+	send_all(self, "_kill_feed", [kname if killer != victim else "", vname,
+		killer.team if killer else -1, victim.team, victim.death_msg])
 
 
 @rpc("authority", "call_local", "reliable")
@@ -629,9 +664,9 @@ func _sync_scores(s: Dictionary) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _kill_feed(killer_name: String, victim_name: String, killer_team: int, victim_team: int) -> void:
+func _kill_feed(killer_name: String, victim_name: String, killer_team: int, victim_team: int, how := "") -> void:
 	if ui:
-		ui.add_kill(killer_name, victim_name, killer_team, victim_team)
+		ui.add_kill(killer_name, victim_name, killer_team, victim_team, how)
 
 
 # --- Damage numbers ---------------------------------------------------------------

@@ -12,6 +12,10 @@ var _scoreboard: Control
 var _score_text: RichTextLabel
 var _feed: VBoxContainer
 var _opened_for_join := false
+var _message: Label
+var _message_time := 0.0
+var _status: RichTextLabel
+var _carry: Label
 
 
 func _ready() -> void:
@@ -28,6 +32,53 @@ func _ready() -> void:
 	_feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_feed)
 
+	# Center messages ("Your flag has been taken!").
+	_message = Label.new()
+	_message.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_message.offset_left = -500
+	_message.offset_right = 500
+	_message.offset_top = 150
+	_message.offset_bottom = 260
+	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_message.add_theme_font_size_override("font_size", 28)
+	_message.add_theme_constant_override("outline_size", 8)
+	_message.add_theme_color_override("font_outline_color", Color.BLACK)
+	_message.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_message)
+
+	# Map status (flags, security, team scores), top left.
+	_status = RichTextLabel.new()
+	_status.bbcode_enabled = true
+	_status.fit_content = true
+	_status.scroll_active = false
+	_status.position = Vector2(24, 20)
+	_status.custom_minimum_size = Vector2(520, 0)
+	_status.add_theme_font_size_override("normal_font_size", 18)
+	_status.add_theme_constant_override("outline_size", 6)
+	_status.add_theme_color_override("font_outline_color", Color.BLACK)
+	_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_status)
+
+	# "YOU HAVE THE FLAG" above the bottom HUD.
+	_carry = Label.new()
+	_carry.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_carry.offset_left = -300
+	_carry.offset_right = 300
+	_carry.offset_top = -230
+	_carry.offset_bottom = -190
+	_carry.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_carry.add_theme_font_size_override("font_size", 26)
+	_carry.add_theme_constant_override("outline_size", 8)
+	_carry.add_theme_color_override("font_outline_color", Color.BLACK)
+	_carry.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_carry)
+
+
+func show_message(text: String) -> void:
+	_message.text = text
+	_message.modulate.a = 1.0
+	_message_time = 4.0
+
 
 func _process(_delta: float) -> void:
 	var me := Game.instance.local_player if Game.instance else null
@@ -35,6 +86,20 @@ func _process(_delta: float) -> void:
 	if me and not _opened_for_join and me.class_id == -1:
 		_opened_for_join = true
 		_show(_team_panel)
+	_message_time -= _delta
+	if _message_time < 1.0:
+		_message.modulate.a = clampf(_message_time, 0.0, 1.0)
+	var ml := MapLogic.instance
+	if ml and me:
+		var head := "[b][color=#%s]RED %d[/color]  —  [color=#%s]BLUE %d[/color][/b]\n" % [
+			TEAM_COLORS[0].to_html(false), ml.team_scores[0], TEAM_COLORS[1].to_html(false), ml.team_scores[1]]
+		_status.text = head + "\n".join(ml.status_lines(me.team))
+		var carrying := ""
+		for f in ml.flags:
+			if f.carrier == me:
+				carrying = "YOU HAVE THE %s!" % f.name.to_upper()
+		_carry.text = carrying
+		_carry.modulate = TEAM_COLORS[1 - me.team] if carrying else Color.WHITE
 	_scoreboard.visible = Input.is_action_pressed("scoreboard")
 	if _scoreboard.visible:
 		_refresh_scoreboard()
@@ -176,8 +241,11 @@ func _refresh_scoreboard() -> void:
 		var total := 0
 		for r in rows[t]:
 			total += r[0]
-		text += "[b][color=#%s]%s  —  %d kills[/color][/b]\n" % [TEAM_COLORS[t].to_html(false),
-			PlayerClasses.TEAM_NAMES[t].to_upper(), total]
+		var team_score := ""
+		if MapLogic.instance:
+			team_score = "%d points  ·  " % MapLogic.instance.team_scores[t]
+		text += "[b][color=#%s]%s  —  %s%d kills[/color][/b]\n" % [TEAM_COLORS[t].to_html(false),
+			PlayerClasses.TEAM_NAMES[t].to_upper(), team_score, total]
 		text += "[color=#999999]%-24s %-10s %6s %6s[/color]\n" % ["NAME", "CLASS", "KILLS", "DEATHS"]
 		for r in rows[t]:
 			var line := "%-24s %-10s %6d %6d" % [r[2], r[3], r[0], r[1]]
@@ -188,7 +256,7 @@ func _refresh_scoreboard() -> void:
 
 # --- Kill feed -------------------------------------------------------------------
 
-func add_kill(killer: String, victim: String, killer_team: int, victim_team: int) -> void:
+func add_kill(killer: String, victim: String, killer_team: int, victim_team: int, how := "") -> void:
 	var l := RichTextLabel.new()
 	l.bbcode_enabled = true
 	l.fit_content = true
@@ -199,7 +267,7 @@ func add_kill(killer: String, victim: String, killer_team: int, victim_team: int
 	l.add_theme_font_size_override("normal_font_size", 18)
 	var v := "[color=#%s]%s[/color]" % [TEAM_COLORS[victim_team].to_html(false), victim]
 	if killer.is_empty():
-		l.text = "[right]%s died[/right]" % v
+		l.text = "[right]%s %s[/right]" % [v, how if how else "died"]
 	else:
 		l.text = "[right][color=#%s]%s[/color]  killed  %s[/right]" % [
 			TEAM_COLORS[killer_team].to_html(false), killer, v]

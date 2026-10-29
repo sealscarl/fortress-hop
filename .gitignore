@@ -26,3 +26,6 @@ mono_crash.*.json
 
 # Android build template
 /android/
+
+# Temporary files from tools/map_builder.gd
+maps/*/.build_*.map

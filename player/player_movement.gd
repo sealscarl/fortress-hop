@@ -77,6 +77,8 @@ var class_id := -1            ## PlayerClasses.Id, or -1 before picking one.
 var pending_class := -1       ## Class to switch to at the next respawn.
 var alive := false            ## False until a class is picked (and while dead).
 var display_name := ""
+## Set just before a non-player death ("was laser'd") for the kill feed.
+var death_msg := ""
 
 var crouched := false
 var health := 100.0
@@ -421,7 +423,10 @@ func take_damage(amount: float, attacker: Player = null) -> void:
 ## Server only.
 func die(killer: Player) -> void:
 	grenades.drop_held()
+	if MapLogic.instance:
+		MapLogic.instance.on_player_died(self)   # Drops a carried flag here.
 	Game.instance.on_death(self, killer)
+	death_msg = ""
 	if pending_class != -1:
 		apply_class(pending_class)
 		pending_class = -1

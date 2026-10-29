@@ -24,6 +24,10 @@ Net="*res://net/network.gd"
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/func_godot/plugin.cfg")
+
 [input]
 
 move_forward={

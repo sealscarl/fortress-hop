@@ -5,10 +5,15 @@ extends Node
 ##   --host               host and play
 ##   --server             dedicated server (no local player)
 ##   --join=192.168.1.20  join that address (no address = this PC)
+##   --map=test_hop       which map to host (see MAPS)
 
 const PORT := 27500          ## QuakeWorld's classic port.
 const MAX_PLAYERS := 16
-const MAP := "res://maps/test_hop.tscn"
+## Maps you can host. The first one is the default.
+const MAPS := {
+	"Phantom (CTF)": "res://maps/ff-phantom/ff-phantom.tscn",
+	"Test Hop (movement)": "res://maps/test_hop.tscn",
+}
 const MENU := "res://ui/main_menu.tscn"
 
 signal status_changed(text: String)
@@ -16,6 +21,8 @@ signal status_changed(text: String)
 var dedicated := false
 var last_status := ""
 var player_name := "Player"
+## The map being played (the server tells clients which one to load).
+var current_map: String = MAPS.values()[0]
 
 
 func _ready() -> void:
@@ -25,6 +32,11 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if arg.begins_with("--name="):
 			player_name = arg.get_slice("=", 1)
+		elif arg.begins_with("--map="):
+			var want := arg.get_slice("=", 1)
+			for path in MAPS.values():
+				if want in path:
+					current_map = path
 		elif arg == "--host":
 			host.call_deferred(false)
 		elif arg == "--server":
@@ -34,7 +46,9 @@ func _ready() -> void:
 			join.call_deferred(ip)
 
 
-func host(p_dedicated := false) -> void:
+func host(p_dedicated := false, map_path := "") -> void:
+	if map_path:
+		current_map = map_path
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(PORT, MAX_PLAYERS)
 	if err != OK:
@@ -42,9 +56,26 @@ func host(p_dedicated := false) -> void:
 		return
 	dedicated = p_dedicated
 	multiplayer.multiplayer_peer = peer
+	if not multiplayer.peer_connected.is_connected(_on_peer_connected):
+		multiplayer.peer_connected.connect(_on_peer_connected)
 	if dedicated:
-		print("Dedicated server running on port %d" % PORT)
-	get_tree().change_scene_to_file(MAP)
+		print("Dedicated server running on port %d, map %s" % [PORT, current_map])
+	get_tree().change_scene_to_file(current_map)
+
+
+## Server: a client connected. Tell it which map to load; it reports back
+## (Game._client_ready) once loaded, and only then gets a player.
+func _on_peer_connected(id: int) -> void:
+	_load_map.rpc_id(id, current_map)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _load_map(path: String) -> void:
+	if not path in MAPS.values():
+		leave("The server is running a map this version doesn't have.")
+		return
+	current_map = path
+	get_tree().change_scene_to_file(path)
 
 
 func join(address: String) -> void:
@@ -59,8 +90,7 @@ func join(address: String) -> void:
 	dedicated = false
 	multiplayer.multiplayer_peer = peer
 	_set_status("Connecting to %s..." % address)
-	# Load the map right away so it's ready when the server starts sending players.
-	get_tree().change_scene_to_file(MAP)
+	# The server tells us which map to load once we're connected.
 
 
 func leave(reason := "") -> void:

@@ -8,7 +8,9 @@ extends Control
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	%Name.text = Net.player_name
-	%Host.pressed.connect(func(): _save_name(); Net.host(false))
+	for title in Net.MAPS:
+		%Map.add_item(title)
+	%Host.pressed.connect(func(): _save_name(); Net.host(false, Net.MAPS.values()[%Map.selected]))
 	%Join.pressed.connect(func(): _save_name(); Net.join(_address.text))
 	_address.text_submitted.connect(func(t): _save_name(); Net.join(t))
 	%Quit.pressed.connect(func(): get_tree().quit())

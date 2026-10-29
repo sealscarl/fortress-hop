@@ -4,9 +4,9 @@ Server-authoritative, QuakeWorld-style. ENet over UDP on **port 27500**.
 
 ## Playing
 
-- **Host:** main menu → *Host game*. You play on the server. This is also offline practice.
+- **Host:** main menu → pick a **Map** → *Host game*. You play on the server. This is also offline practice.
 - **Join:** type the host's IP address → *Join game*. `127.0.0.1` means "this PC".
-- **Dedicated server:** run the game with `--server` (no player, no window needed with `--headless`).
+- **Dedicated server:** run the game with `--server` (no player, no window needed with `--headless`). Add `--map=test_hop` to pick a map (default: Phantom).
 
 ### Two copies on one PC (for testing)
 
@@ -23,6 +23,8 @@ Only the focused window gets keyboard and mouse input.
 The host must forward **UDP port 27500** on their router to their PC, and allow Godot / the game through Windows Firewall. The friend joins using the host's public IP. On the same home network, use the host's local IP (e.g. `192.168.1.20`) and no forwarding is needed.
 
 ## How it works
+
+0. **Joining:** the client connects, the server tells it which map to load, the client loads it and reports ready, and only then does the server create its player and start sending it game events. (Clients still loading never get events for things they don't have yet.)
 
 1. Every tick (128/s) your client turns your input into a **command** (keys held, look direction, grenade taps), runs it on your player **immediately**, and sends it to the server. The last 4 commands are resent each tick, so a lost packet doesn't lose a grenade tap.
 2. The server runs each player's commands, in order, through the **same movement code**. Grenades, damage, explosions and respawns happen **only on the server**.

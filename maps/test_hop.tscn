@@ -218,8 +218,5 @@ transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 6, 0.1, -64)
 
 [node name="Players" type="Node3D" parent="."]
 
-[node name="PlayerSpawner" type="MultiplayerSpawner" parent="."]
-spawn_path = NodePath("../Players")
-
 [node name="Game" type="Node" parent="."]
 script = ExtResource("1_game")

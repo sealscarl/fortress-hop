@@ -98,7 +98,7 @@ func tick(cmd: PlayerCmd, delta: float) -> void:
 		reloading = false           # Switching cancels a reload.
 		_reload_queued = false
 		switching = switch_time
-		_play_fx.rpc(_FX_SWITCH)
+		Game.instance.send_all(self, "_play_fx", [_FX_SWITCH])
 
 	if cmd.has(PlayerCmd.DETONATE):
 		Game.instance.detonate_pipes(player)
@@ -121,7 +121,7 @@ func tick(cmd: PlayerCmd, delta: float) -> void:
 			if reload_left <= 0.0:
 				clip[s] += 1
 				reserve[s] -= 1
-				_play_fx.rpc(_FX_RELOAD)
+				Game.instance.send_all(self, "_play_fx", [_FX_RELOAD])
 				if clip[s] >= size or reserve[s] <= 0:
 					reloading = false
 				else:
@@ -136,7 +136,7 @@ func tick(cmd: PlayerCmd, delta: float) -> void:
 			_fire(kinds[s], cmd)
 		elif size == 0 or reserve[s] == 0:
 			cooldown = 0.3          # Completely out: click.
-			_play_fx.rpc(_FX_DRY)
+			Game.instance.send_all(self, "_play_fx", [_FX_DRY])
 
 	# Auto-reload when empty, or a requested reload, once the shot is done.
 	if size > 0 and cooldown <= 0.0 and not reloading and reserve[s] > 0 \
@@ -164,7 +164,7 @@ func _fire(kind: int, cmd: PlayerCmd) -> void:
 	var eye := cam.global_position
 	var aim := -cam.global_basis.z
 	var d: Dictionary = WeaponStats.DATA[kind]
-	_play_fx.rpc(kind)
+	Game.instance.send_all(self, "_play_fx", [kind])
 	match kind:
 		K.ROCKET_LAUNCHER:
 			Game.instance.spawn_projectile(player, kind, eye + aim * 0.5, aim * d.speed)

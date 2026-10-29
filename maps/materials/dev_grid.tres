@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://shaders/grid.gdshader" id="1_7a2cs"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_7a2cs")
+shader_parameter/base_color = null
+shader_parameter/line_color = null
+shader_parameter/major_color = null
+shader_parameter/tint_strength = null
+shader_parameter/red_center = null
+shader_parameter/blue_center = null
