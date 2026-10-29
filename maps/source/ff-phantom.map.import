@@ -1,0 +1,14 @@
+[remap]
+
+importer="func_godot.map"
+type="QuakeMapFile"
+uid="uid://ckk65keia525i"
+path="res://.godot/imported/ff-phantom.map-713ddf2ae1fbc6ba166c0626c7bb9ed1.tres"
+
+[deps]
+
+source_file="res://maps/source/ff-phantom.map"
+dest_files=["res://.godot/imported/ff-phantom.map-713ddf2ae1fbc6ba166c0626c7bb9ed1.tres"]
+
+[params]
+

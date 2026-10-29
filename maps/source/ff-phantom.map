@@ -21049,9 +21049,9 @@
 "team_str_home" "Your flag is in your base.\n"
 "team_str_moved" "Your flag is lying around."
 "team_str_carried" "Your flag is being carried by\n"
-"non_team_str_home" "The енемы flag is in their base.\n"
-"non_team_str_moved" "The енемы flag is lying around."
-"non_team_str_carried" "The енемы flag is being carried by\n"
+"non_team_str_home" "The ENEMY flag is in their base.\n"
+"non_team_str_moved" "The ENEMY flag is lying around."
+"non_team_str_carried" "The ENEMY flag is being carried by\n"
 "non_team_broadcast" "Press the enemies button, then get the enemy flag and take it to your battlement!\n"
 }
 // entity 2
