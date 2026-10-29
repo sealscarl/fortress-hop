@@ -21,6 +21,33 @@ Units: 1 m = 32 Quake units, so 10 m/s = 320 ups. The speedometer shows both.
 | `max_bhop_speed` | 0 (uncapped) | TFC capped near 1.7 × max_speed |
 | `crouch_speed_scale` | 0.333 | TFC duck speed |
 | `stand_height` / `crouch_height` | 1.8 / 1.1 m | |
+| `step_height` | 0.5625 m | STEPSIZE 18 units |
+| `air_step` | on | FTEQW / QWTF Live `pm_airstep 1` |
+
+The player hull is a flat-bottomed cylinder, 0.4 m radius (Quake uses a flat-bottomed box), so you can stand on step edges.
+
+## Stairs and airstep
+
+Quake `PM_StepSlideMove`, with FTEQW's airstep:
+
+- **On the ground**, anything up to 18 units tall that stops you is stepped up onto, at full speed.
+- **In the air** the same step-up runs if you hit a step face and there's floor within 18 units below your feet, so **you can bhop up stairs without losing speed**. You can't climb more than 18 units above that floor.
+- **Speed is never changed by a step.** Horizontal speed carries through and vertical speed is exactly what it was without the step, so there's no boost.
+- Taller ledges and walls stop you as usual.
+
+Physics engines round collision edges slightly (Jolt especially), which would make a step's lip look like a steep slope. The step code checks just past the lip for flat ground and sets you flat on top, matching Quake's sharp-edged hull.
+
+Verified on a test course (16-unit stairs), with identical results on Jolt and GodotPhysics:
+
+| Test | Result |
+| --- | --- |
+| Walk up 8 stairs at 320 ups | Climbs to the top, 320 ups the whole way |
+| Bhop up stairs at 640 ups, airstep on | Reaches the top, 640 ups the whole way |
+| Same, airstep off | Stops dead at the second step |
+| Bhop down stairs at 640 ups | 640 ups throughout |
+| Walk into an 18-unit ledge | Steps up |
+| Walk or bhop into a 24-unit ledge | Blocked (jump it) |
+| Bhop into a wall | Stops, no climbing |
 
 ## How bhopping works here
 

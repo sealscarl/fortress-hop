@@ -45,6 +45,13 @@ const HULL_RADIUS := 0.4
 ## TFC used about 1.7 x max_speed.
 @export var max_bhop_speed := 0.0
 
+@export_group("Steps")
+## Tallest step you walk up without jumping. Quake: 18 units.
+@export var step_height := 0.5625
+## FTEQW / QWTF Live "pm_airstep": the same step-up works in the air, so you
+## can bhop up stairs without losing (or gaining) speed.
+@export var air_step := true
+
 @export_group("Crouch")
 @export var stand_height := 1.8
 @export var crouch_height := 1.1
@@ -272,11 +279,88 @@ func simulate(cmd: PlayerCmd, delta: float) -> void:
 		velocity.y -= gravity * delta
 
 	_cap_horizontal_speed()
-	move_and_slide()
-	on_floor = is_on_floor()
+	_step_slide_move(not on_ground or wants_jump)
 
 	if global_position.y < -50.0 and multiplayer.is_server():
 		die(null)
+
+
+## Quake PM_StepSlideMove, with FTEQW's pm_airstep. Slides normally; if a
+## wall stopped us, tries again lifted by a step, then presses back down onto
+## it, and keeps whichever got further. Vertical speed always comes from the
+## normal slide, so stepping never adds or removes speed.
+func _step_slide_move(in_air: bool) -> void:
+	var start := global_position
+	var start_vel := velocity
+	move_and_slide()
+	on_floor = is_on_floor()
+
+	var hit_wall := false
+	for i in get_slide_collision_count():
+		# Anything we can't stand on (walls, step risers, rounded lips).
+		var n := get_slide_collision(i).get_normal()
+		if n.y < 0.7 and n.y > -0.1:
+			hit_wall = true
+	if not hit_wall or (in_air and not air_step):
+		return
+	var down_pos := global_position
+	var down_vel := velocity
+	var down_floor := on_floor
+
+	var step := step_height
+	if in_air:
+		# Only a real step: there must be floor within a step below us
+		# (where we started if rising, where we ended up if falling), and we
+		# can't climb higher than a step above it.
+		var org := down_pos if start_vel.y < 0.0 else start
+		var probe := KinematicCollision3D.new()
+		if not test_move(Transform3D(global_basis, org), Vector3.DOWN * step_height, probe) \
+				or is_nan(_floor_height(probe)):
+			return
+		step = step_height - probe.get_travel().length()
+		if step <= 0.001:
+			return
+
+	# Retry from the start, lifted up a step (less if there's a ceiling).
+	global_position = start
+	velocity = start_vel
+	move_and_collide(Vector3.UP * step)
+	move_and_slide()
+	var slide_floor := is_on_floor()
+	# Press back down onto the step.
+	var land := move_and_collide(Vector3.DOWN * step)
+	var up_dist := Vector2(global_position.x - start.x, global_position.z - start.z).length()
+	var down_dist := Vector2(down_pos.x - start.x, down_pos.z - start.z).length()
+	var floor_y := _floor_height(land) if land else NAN
+	if (land and is_nan(floor_y)) or down_dist > up_dist:
+		global_position = down_pos
+		velocity = down_vel
+		on_floor = down_floor
+		return
+	if not is_nan(floor_y) and floor_y > global_position.y:
+		global_position.y = floor_y   # Sit flat on the step, not on its rounded lip.
+	velocity.y = down_vel.y
+	on_floor = velocity.y <= 0.0 and (slide_floor or land != null)
+
+
+## Height of the standable ground under a downward hit, or NAN if it's not
+## ground. Physics engines round shape edges slightly (Jolt especially), so
+## landing on the lip of a step reports a slanted normal. Quake's hull has
+## sharp edges and would stand there, so for a slanted hit we look just past
+## the contact for flat ground: a step's top is there, a steep slope isn't.
+func _floor_height(hit: KinematicCollision3D) -> float:
+	var n := hit.get_normal()
+	if n.y >= 0.7:
+		return hit.get_position().y
+	if n.y <= 0.0:
+		return NAN
+	var out := Vector3(-n.x, 0.0, -n.z).normalized() * 0.05
+	var from := hit.get_position() + out + Vector3.UP * 0.1
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 0.2, collision_mask, [get_rid()])
+	var ray := get_world_3d().direct_space_state.intersect_ray(q)
+	if ray.is_empty() or ray.normal.y < 0.7:
+		return NAN
+	return ray.position.y
 
 
 ## Everything a replay needs to restart from a server-confirmed tick.
@@ -382,8 +466,8 @@ func _update_crouch(want: bool) -> void:
 
 
 func _apply_hull(height: float) -> void:
-	var capsule := collision.shape as CapsuleShape3D
-	capsule.height = height
+	var hull := collision.shape as CylinderShape3D
+	hull.height = height
 	collision.position.y = height * 0.5
 	if has_node("Body"):
 		var body := $Body as MeshInstance3D
@@ -401,7 +485,7 @@ func set_remote_crouched(value: bool) -> void:
 
 ## Half the length of the hull capsule's inner segment (for hitscan checks).
 func hull_half_segment() -> float:
-	return (collision.shape as CapsuleShape3D).height * 0.5 - HULL_RADIUS
+	return (collision.shape as CylinderShape3D).height * 0.5 - HULL_RADIUS
 
 
 ## Middle of the player's hull, which is what explosions measure distance to.
