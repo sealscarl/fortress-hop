@@ -344,6 +344,7 @@ func spawn_grenade(thrower: GrenadeThrower, type: Grenade.Type, pos: Vector3,
 func _show_grenade(id: int, type: int, pos: Vector3, vel: Vector3) -> void:
 	var g := Grenade.create(type as Grenade.Type, 0.0, null, id)
 	_projectiles[id] = g
+	g.tree_exited.connect(func(): _projectiles.erase(id))
 	_add_grenade(g, pos, vel)
 
 
@@ -365,7 +366,9 @@ func announce_explosion(grenade_id: int, type: Grenade.Type, origin: Vector3, ra
 
 @rpc("authority", "call_local", "reliable")
 func _explosion(grenade_id: int, type: int, origin: Vector3, radius: float) -> void:
-	var g: Node = _projectiles.get(grenade_id)
+	# Untyped on purpose: the look-alike may already have removed itself, and
+	# putting a freed object in a typed variable is an error.
+	var g = _projectiles.get(grenade_id)
 	if is_instance_valid(g):
 		g.queue_free()
 	_projectiles.erase(grenade_id)
@@ -389,6 +392,7 @@ func _show_projectile(id: int, kind: int, pos: Vector3, vel: Vector3) -> void:
 	var r := Rocket.create(null, kind, vel, id)
 	r.position = pos
 	_projectiles[id] = r
+	r.tree_exited.connect(func(): _projectiles.erase(id))
 	get_parent().add_child(r)
 
 
@@ -412,6 +416,7 @@ func _show_bomb(id: int, kind: int, pos: Vector3, vel: Vector3, shooter_peer: in
 	var shooter := players_root.get_node_or_null(str(shooter_peer)) as Player
 	var b := Bomb.create(shooter, kind, id, false)
 	_projectiles[id] = b
+	b.tree_exited.connect(func(): _projectiles.erase(id))
 	_add_bomb(b, pos, vel)
 
 

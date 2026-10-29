@@ -59,7 +59,8 @@ func _physics_process(delta: float) -> void:
 	var step := velocity * delta
 	if not is_real:
 		global_position += step
-		if _age > LIFETIME:
+		# Outlive the server's copy a little; normally the server removes us.
+		if _age > LIFETIME + 1.0:
 			queue_free()
 		return
 
