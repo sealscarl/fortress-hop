@@ -56,9 +56,7 @@ const HULL_RADIUS := 0.4
 @export_group("Health")
 @export var max_health := 100.0
 
-@export_group("Mouse")
-## Degrees of turn per pixel of mouse movement (like Quake's m_yaw 0.022 x sens).
-@export var mouse_sensitivity := 0.1
+## Mouse sensitivity, FOV and auto-hop come from the Settings autoload (Options menu).
 
 @onready var collision: CollisionShape3D = $CollisionShape3D
 @onready var head: Node3D = $Head
@@ -106,11 +104,20 @@ func _ready() -> void:
 	look_yaw = rotation.y
 	if is_local:
 		camera.current = true
+		Settings.changed.connect(_apply_settings)
+		_apply_settings()
 	else:
 		camera.current = false
 		hud.visible = false
 		_add_body_mesh()
 	set_alive(alive)
+
+
+## Options that affect the local player (FOV, auto-hop, speedometer).
+func _apply_settings() -> void:
+	camera.fov = Settings.vertical_fov()
+	auto_hop = Settings.get_option("auto_hop")
+	speed_label.visible = Settings.get_option("show_speed")
 
 
 func _add_body_mesh() -> void:
@@ -183,18 +190,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_local:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		look_yaw -= deg_to_rad(event.relative.x * mouse_sensitivity)
-		look_pitch = clampf(look_pitch - deg_to_rad(event.relative.y * mouse_sensitivity),
+		var deg := Settings.degrees_per_count()
+		var dy: float = -event.relative.y if Settings.get_option("invert_y") else event.relative.y
+		look_yaw -= deg_to_rad(event.relative.x * deg)
+		look_pitch = clampf(look_pitch - deg_to_rad(dy * deg),
 			deg_to_rad(-89.0), deg_to_rad(89.0))
 		apply_look()
 	elif event.is_action_pressed("weapon_next"):
 		_wheel_flags |= PlayerCmd.NEXT_WEAPON
 	elif event.is_action_pressed("weapon_prev"):
 		_wheel_flags |= PlayerCmd.PREV_WEAPON
-	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed \
-			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+			and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not GameUI.menu_open():
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
 

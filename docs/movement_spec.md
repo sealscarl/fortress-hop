@@ -70,7 +70,7 @@ Beeps: one per second, then four fast beeps in the final second. The HUD timer f
 | `conc_radius` | 8.75 m | TFC (280 u) |
 | `hh_lateral_power` / `hh_vertical_power` | 2.74 / 4.1 | TFC |
 | `hh_min_up_speed` | 10 m/s (320 ups) | Fortress Forever-style assist, our value |
-| `conc_max_horizontal_speed` | 43.75 m/s (1400 ups) | Our cap; TFC had none |
+| `conc_max_horizontal_speed` | 31.25 m/s (1000 ups) | Our cap; TFC had none (was 1400 until Oct 2026) |
 
 ### Conc physics
 
@@ -81,7 +81,7 @@ Beeps: one per second, then four fast beeps in the final second. The HUD timer f
 
 Push grows with distance, so the best launch is near the edge of the 8.75 m radius.
 
-**Cap:** after any conc, horizontal speed is capped at 1400 ups so chained handhelds can't snowball (before the cap, two handhelds reached 3600+ ups).
+**Cap:** after any conc, horizontal speed is capped at 1000 ups so chained handhelds can't snowball (before the cap, two handhelds reached 3600+ ups).
 
 **Handheld frag:** pushes you 1000 ups along the way you're already moving, plus 50 HP damage. Upward motion counts, so jump first for height; falling doesn't, so it never drives you into the floor. Standing still sends you straight up.
 
@@ -92,8 +92,8 @@ Verified in headless simulation:
 | Case | Result |
 | --- | --- |
 | Handheld conc, standing still | 0 horizontal, about 300 ups up (assist hop) |
-| Handheld conc at the moment you jump, bhopping at 480 ups | 1315 ups horizontal, 1107 ups up |
-| Second handheld conc right after | 1400 ups horizontal (capped), 1107 ups up |
+| Handheld conc at the moment you jump, bhopping at 480 ups | 1000 ups horizontal (capped; 1315 uncapped), 1107 ups up |
+| Second handheld conc right after | 1000 ups horizontal (capped), 1107 ups up |
 | Handheld conc mistimed near the top of a jump, moving 320 ups | 877 horizontal, 320 up |
 | Drop conc 2 m away, 45° below | 337 horizontal / 505 up |
 | Drop conc 8.7 m away (edge) | 832 horizontal / 1247 up |

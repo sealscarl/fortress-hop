@@ -57,8 +57,8 @@ const CONC_SOUND := preload("res://sounds/explode_conc.wav")
 
 @export_group("Conc (both)")
 ## Horizontal speed cap after any conc, so chained handhelds can't snowball.
-## 43.75 m/s = 1400 ups (what the speedometer shows). 0 = no cap (TFC).
-@export var conc_max_horizontal_speed := 43.75
+## 31.25 m/s = 1000 ups (what the speedometer shows). 0 = no cap (TFC).
+@export var conc_max_horizontal_speed := 31.25
 
 signal changed  ## Counts, prime state or timer changed (for the HUD).
 

@@ -1,6 +1,7 @@
+class_name GameUI
 extends CanvasLayer
-## In-game menus: team select (F2), class select (F1), scoreboard (hold Tab)
-## and the kill feed. Built in code; owned by Game.
+## In-game menus: team select (F2), class select (F1), scoreboard (hold Tab),
+## the Esc menu (with Options) and the kill feed. Built in code; owned by Game.
 ##
 ## On joining you pick a team, then a class, then you spawn.
 
@@ -16,13 +17,27 @@ var _message: Label
 var _message_time := 0.0
 var _status: RichTextLabel
 var _carry: Label
+var _pause: Control
+var _options: OptionsMenu
+
+static var instance: GameUI
+
+
+## True while any in-game menu is up (clicks shouldn't grab the mouse).
+static func menu_open() -> bool:
+	if not is_instance_valid(instance):
+		return false
+	return instance._team_panel.visible or instance._class_panel.visible \
+		or instance._pause.visible or is_instance_valid(instance._options)
 
 
 func _ready() -> void:
+	instance = self
 	layer = 10
 	_team_panel = _make_team_panel()
 	_class_panel = _make_class_panel()
 	_scoreboard = _make_scoreboard()
+	_pause = _make_pause_menu()
 	_feed = VBoxContainer.new()
 	_feed.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_feed.offset_left = -520
@@ -106,6 +121,8 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if is_instance_valid(_options):
+		return   # The Options screen handles its own keys.
 	# Number keys pick a class while the class menu is open.
 	if _class_panel.visible and event is InputEventKey and event.pressed and not event.echo:
 		var n: int = event.physical_keycode - KEY_1
@@ -117,8 +134,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_toggle(_class_panel)
 	elif event.is_action_pressed("change_team"):
 		_toggle(_team_panel)
-	elif event.is_action_pressed("ui_cancel") and (_team_panel.visible or _class_panel.visible):
-		_close_menus()
+	elif event.is_action_pressed("ui_cancel"):
+		# Esc: close whatever's open, or open the Esc menu.
+		if _team_panel.visible or _class_panel.visible or _pause.visible:
+			_close_menus()
+		else:
+			_show(_pause)
 		get_viewport().set_input_as_handled()
 
 
@@ -132,6 +153,7 @@ func _toggle(panel: Control) -> void:
 func _show(panel: Control) -> void:
 	_team_panel.visible = panel == _team_panel
 	_class_panel.visible = panel == _class_panel
+	_pause.visible = panel == _pause
 	if panel == _class_panel:
 		_refresh_class_hint()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -140,9 +162,37 @@ func _show(panel: Control) -> void:
 func _close_menus() -> void:
 	_team_panel.visible = false
 	_class_panel.visible = false
+	_pause.visible = false
 	var me := Game.instance.local_player
 	if me and me.class_id != -1:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+# --- Esc menu ------------------------------------------------------------------
+
+func _make_pause_menu() -> Control:
+	var box := _panel("MENU")
+	var items := [
+		["Resume", _close_menus],
+		["Options", _open_options],
+		["Change team  (F2)", _show.bind(_team_panel)],
+		["Change class  (F1)", func(): _show(_class_panel)],
+		["Leave game", func(): Net.leave()],
+		["Quit to desktop", func(): get_tree().quit()],
+	]
+	for it in items:
+		var b := _big_button(it[0], Color(0.22, 0.24, 0.28))
+		b.custom_minimum_size = Vector2(340, 52)
+		b.pressed.connect(it[1])
+		box.add_child(b)
+	return box.get_parent().get_parent()
+
+
+func _open_options() -> void:
+	_pause.visible = false
+	_options = OptionsMenu.new()
+	_options.closed.connect(func(): _show(_pause))
+	add_child(_options)
 
 
 # --- Team panel ----------------------------------------------------------------

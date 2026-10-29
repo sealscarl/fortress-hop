@@ -13,6 +13,7 @@ func _ready() -> void:
 	%Host.pressed.connect(func(): _save_name(); Net.host(false, Net.MAPS.values()[%Map.selected]))
 	%Join.pressed.connect(func(): _save_name(); Net.join(_address.text))
 	_address.text_submitted.connect(func(t): _save_name(); Net.join(t))
+	%Options.pressed.connect(func(): add_child(OptionsMenu.new()))
 	%Quit.pressed.connect(func(): get_tree().quit())
 	_status.text = Net.last_status
 	Net.status_changed.connect(func(t): _status.text = t)
