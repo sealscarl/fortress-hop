@@ -27,7 +27,7 @@ var current_map: String = MAPS.values()[0]
 
 func _ready() -> void:
 	multiplayer.server_disconnected.connect(func(): leave("Lost connection to the server."))
-	multiplayer.connection_failed.connect(func(): leave("Couldn't connect to the server."))
+	multiplayer.connection_failed.connect(_on_connection_failed)
 	_load_name()
 	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if arg.begins_with("--name="):
@@ -43,7 +43,8 @@ func _ready() -> void:
 			host.call_deferred(true)
 		elif arg.begins_with("--join"):
 			var ip := arg.get_slice("=", 1) if "=" in arg else "127.0.0.1"
-			join.call_deferred(ip)
+			# Started together with a --host window: keep trying while it starts up.
+			join.call_deferred(ip, 10)
 
 
 func host(p_dedicated := false, map_path := "") -> void:
@@ -78,7 +79,14 @@ func _load_map(path: String) -> void:
 	get_tree().change_scene_to_file(path)
 
 
-func join(address: String) -> void:
+var _join_address := ""
+var _join_retries := 0
+
+
+## retries: how many more times to try (1 s apart) if the server isn't up yet.
+func join(address: String, retries := 0) -> void:
+	_join_address = address
+	_join_retries = retries
 	address = address.strip_edges()
 	if address.is_empty():
 		address = "127.0.0.1"
@@ -91,6 +99,16 @@ func join(address: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	_set_status("Connecting to %s..." % address)
 	# The server tells us which map to load once we're connected.
+
+
+func _on_connection_failed() -> void:
+	if _join_retries > 0:
+		_set_status("Waiting for the server at %s..." % _join_address)
+		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+		await get_tree().create_timer(1.0).timeout
+		join(_join_address, _join_retries - 1)
+	else:
+		leave("Couldn't connect to the server.")
 
 
 func leave(reason := "") -> void:
