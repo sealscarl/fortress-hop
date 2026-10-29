@@ -27,7 +27,7 @@ All tuning values are on the Player's **Weapons** node in the Inspector (`weapon
 | Clip / reserve | 4 / 20 | TFC/TF2 clip |
 | Fire interval | 0.8 s | |
 | Reload | 0.92 s first rocket, 0.8 s each after | TF2 |
-| Rocket speed | 28.125 m/s (900 ups) | TFC |
+| Rocket speed | 31.25 m/s (1000 ups) | Our choice (TFC: 900) |
 | Damage / radius | 100 / 5 m (160 u) | Quake radius = damage + 40 units |
 | Knockback | 0.25 m/s per damage point | Quake (8 ups per point) |
 | Self-damage | × 0.5 | Rocket jumps cost health |

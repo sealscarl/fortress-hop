@@ -33,8 +33,8 @@ const SWITCH_SOUND := preload("res://sounds/weapon_switch.wav")
 @export var rl_fire_interval := 0.8
 @export var rl_reload_first := 0.92
 @export var rl_reload_each := 0.8
-## TFC: 900 ups.
-@export var rocket_speed := 28.125
+## 1000 ups (TFC: 900).
+@export var rocket_speed := 31.25
 @export var rocket_damage := 100.0
 ## Quake: damage + 40 units = 160 units.
 @export var rocket_radius := 5.0
