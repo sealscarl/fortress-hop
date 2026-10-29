@@ -4,8 +4,9 @@ extends RigidBody3D
 ## like hand grenades.
 ## - Grenades explode after their fuse, or instantly if they touch an enemy
 ##   before their first bounce.
-## - Pipe bombs never go off on their own: the Demoman detonates them all
-##   with Mouse 5. Only so many can be out at once; the oldest pops first.
+## - Pipe bombs never go off on their own: the Demoman detonates them with
+##   Mouse 5 once they've armed (arm_time after firing; they start glowing).
+##   Only so many can be out at once; the oldest pops first.
 
 var kind: int              ## WeaponStats.Kind
 var shooter: Player        ## Null on a client look-alike.
@@ -13,6 +14,8 @@ var is_real := false
 var net_id := 0
 var fuse_left := 0.0
 var bounced := false
+var age := 0.0
+var _glow: StandardMaterial3D
 
 
 ## On clients, pass the shooter too (for team colors) with p_real = false.
@@ -62,13 +65,21 @@ func _ready() -> void:
 	if pipe:
 		m.emission_enabled = true
 		m.emission = team_color
-		m.emission_energy_multiplier = 0.4
+		m.emission_energy_multiplier = 0.0   # Lights up once armed.
+		_glow = m
 	mesh.material_override = m
 	add_child(mesh)
 	body_entered.connect(func(_b): bounced = true)
 
 
+func is_armed() -> bool:
+	return age >= WeaponStats.get_stat(kind, "arm_time")
+
+
 func _physics_process(delta: float) -> void:
+	age += delta
+	if _glow and _glow.emission_energy_multiplier == 0.0 and is_armed():
+		_glow.emission_energy_multiplier = 0.6
 	if not is_real:
 		return
 	if not is_instance_valid(shooter):

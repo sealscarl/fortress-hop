@@ -40,7 +40,10 @@ const DATA := {
 		"name": "PIPE BOMBS", "clip": 6, "reserve": 30, "interval": 0.6,
 		"reload_first": 1.0, "reload_each": 0.6,
 		"speed": 18.75, "pitch_up_deg": 6.0, "damage": 90.0, "radius": 5.0,
-		"knockback": 0.25, "self_scale": 0.5, "max_active": 8,
+		# self_scale: a pipe at your feet costs ~45 HP, so a 200 HP Demoman
+		# gets 4 pipe jumps and the 5th kills him. arm_time: seconds after
+		# firing before a pipe can be detonated.
+		"knockback": 0.25, "self_scale": 0.66, "max_active": 8, "arm_time": 0.25,
 		"view": [Color(0.15, 0.4, 0.25), 0.065, 0.55],
 	},
 	Kind.MEDKIT: {

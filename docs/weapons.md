@@ -64,10 +64,10 @@ Nails are straight-flying projectiles, like small rockets that don't explode.
 | Fire interval | 0.6 s | 0.6 s |
 | Reload | 1.0 s first, 0.6 s each | same |
 | Damage / radius | 100 / 5 m | 90 / 5 m |
-| Goes off | After 2.5 s, or on touching an enemy before its first bounce | Only on Mouse 5 (all at once) |
+| Goes off | After 2.5 s, or on touching an enemy before its first bounce | Only on Mouse 5, once armed (0.25 s after firing; armed pipes glow) |
 | Max out at once | — | 8 (the oldest goes off) |
 
-Both bounce like hand grenades. Self-damage × 0.5, so pipe jumps work.
+Both bounce like hand grenades. Self-damage: grenade launcher × 0.5; pipe bombs × 0.66, so a pipe jump costs ~48 HP: a 200 HP Demoman gets 4 pipe jumps (6 HP left) and the 5th kills him. Each pipe jump launches ~845 ups up.
 
 ## Medkit (Medic)
 

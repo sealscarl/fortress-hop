@@ -426,12 +426,18 @@ func _add_bomb(b: Bomb, pos: Vector3, vel: Vector3) -> void:
 	b.linear_velocity = vel
 
 
-## Server: Mouse 5. Every pipe this player has out goes off.
+## Server: Mouse 5. Every armed pipe this player has out goes off; pipes
+## fired less than arm_time ago stay put for the next press.
 func detonate_pipes(p: Player) -> void:
+	var still_arming := []
 	for b in _pipes.get(p.peer_id, []):
-		if is_instance_valid(b):
+		if not is_instance_valid(b) or b.is_queued_for_deletion():
+			continue
+		if b.is_armed():
 			b.explode()
-	_pipes.erase(p.peer_id)
+		else:
+			still_arming.append(b)
+	_pipes[p.peer_id] = still_arming
 
 
 # --- Hitscan with lag compensation ---------------------------------------------
