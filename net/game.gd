@@ -25,6 +25,7 @@ const INTERP_DELAY_TICKS := 16   ## Draw others 125 ms behind the server.
 const CMD_REDUNDANCY := 4        ## Resend the last 4 commands each tick to survive packet loss.
 const MAX_CMDS_PER_TICK := 4     ## Server catch-up limit per player per tick.
 const MAX_QUEUED_CMDS := 64
+const LAG_COMP_TICKS := 128      ## Rewind up to 1 s for hitscan checks.
 
 static var instance: Game
 
@@ -38,6 +39,7 @@ var _cmd_queue := {}      ## peer id -> Array[PlayerCmd] waiting to run
 var _last_queued := {}    ## peer id -> highest seq queued
 var _last_run := {}       ## peer id -> seq of the last command run
 var _next_grenade_id := 1
+var _pos_history := {}    ## server tick -> {peer id: [hull center, half segment]}
 
 # Client side
 var local_player: Player
@@ -49,7 +51,7 @@ var _history := {}                    ## seq -> predicted state after that comma
 var _latest_snapshot: Array = []
 var _server_tick := 0.0               ## Our running estimate of the server's tick.
 var _interp := {}                     ## peer id -> Array of [tick, pos, yaw, pitch, crouched]
-var _grenades := {}                   ## net id -> Grenade (look-alikes)
+var _projectiles := {}                ## net id -> Grenade/Rocket look-alike
 
 
 func _enter_tree() -> void:
@@ -120,6 +122,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _server_tick_players(delta: float) -> void:
+	_record_positions()
 	for p: Player in players_root.get_children():
 		if p.is_queued_for_deletion():
 			continue
@@ -127,8 +130,10 @@ func _server_tick_players(delta: float) -> void:
 			# Host: no network in the way, just run our input.
 			_seq += 1
 			var cmd := p.build_cmd(_seq)
+			cmd.view_tick = tick   # The host sees everyone live.
 			p.simulate(cmd, delta)
 			p.grenades.tick(cmd, delta)
+			p.weapons.tick(cmd, delta)
 			continue
 		var q: Array = _cmd_queue.get(p.peer_id, [])
 		var n := 0
@@ -136,6 +141,7 @@ func _server_tick_players(delta: float) -> void:
 			var cmd: PlayerCmd = q.pop_front()
 			p.simulate(cmd, delta)
 			p.grenades.tick(cmd, delta)
+			p.weapons.tick(cmd, delta)
 			_last_run[p.peer_id] = cmd.seq
 			n += 1
 
@@ -145,6 +151,7 @@ func _client_predict(delta: float) -> void:
 		return
 	_seq += 1
 	var cmd := local_player.build_cmd(_seq)
+	cmd.view_tick = int(_server_tick) - INTERP_DELAY_TICKS
 	local_player.simulate(cmd, delta)
 	_history[_seq] = local_player.get_state()
 	_pending.append(cmd)
@@ -164,8 +171,8 @@ func _submit_cmds(packed: Array) -> void:
 	var q: Array = _cmd_queue.get_or_add(id, [])
 	var last: int = _last_queued.get(id, 0)
 	for a in packed:
-		var c := PlayerCmd.from_array(a)
-		if c.seq > last:
+		var c := PlayerCmd.from_array(a) if a is Array else null
+		if c and c.seq > last:
 			q.append(c)
 			last = c.seq
 	_last_queued[id] = last
@@ -183,7 +190,7 @@ func _send_snapshots() -> void:
 		var p := players_root.get_node_or_null(str(id)) as Player
 		if p == null:
 			continue
-		var personal := [_last_run.get(id, 0), p.get_state(), p.health, p.grenades.snapshot()]
+		var personal := [_last_run.get(id, 0), p.get_state(), p.health, p.grenades.snapshot(), p.weapons.snapshot()]
 		_receive_snapshot.rpc_id(id, tick, everyone, personal)
 
 
@@ -213,6 +220,7 @@ func _apply_snapshot(snap: Array) -> void:
 	var server_state: Array = personal[1]
 	local_player.health = personal[2]
 	local_player.grenades.apply_snapshot(personal[3])
+	local_player.weapons.apply_snapshot(personal[4])
 
 	while _pending.size() and _pending[0].seq <= ack:
 		_pending.pop_front()
@@ -267,8 +275,7 @@ func _interpolate_others() -> void:
 ## Server: throw a real grenade and tell clients to show a look-alike.
 func spawn_grenade(thrower: GrenadeThrower, type: Grenade.Type, pos: Vector3,
 		vel: Vector3, fuse: float) -> void:
-	var id := _next_grenade_id
-	_next_grenade_id += 1
+	var id := _new_projectile_id()
 	_add_grenade(Grenade.create(type, fuse, thrower, id), pos, vel)
 	_show_grenade.rpc(id, type, pos, vel)
 
@@ -276,7 +283,7 @@ func spawn_grenade(thrower: GrenadeThrower, type: Grenade.Type, pos: Vector3,
 @rpc("authority", "call_remote", "reliable")
 func _show_grenade(id: int, type: int, pos: Vector3, vel: Vector3) -> void:
 	var g := Grenade.create(type as Grenade.Type, 0.0, null, id)
-	_grenades[id] = g
+	_projectiles[id] = g
 	_add_grenade(g, pos, vel)
 
 
@@ -286,6 +293,11 @@ func _add_grenade(g: Grenade, pos: Vector3, vel: Vector3) -> void:
 	g.linear_velocity = vel
 
 
+func _new_projectile_id() -> int:
+	_next_grenade_id += 1
+	return _next_grenade_id
+
+
 ## Server: an explosion happened. Show it everywhere.
 func announce_explosion(grenade_id: int, type: Grenade.Type, origin: Vector3, radius: float) -> void:
 	_explosion.rpc(grenade_id, type, origin, radius)
@@ -293,9 +305,94 @@ func announce_explosion(grenade_id: int, type: Grenade.Type, origin: Vector3, ra
 
 @rpc("authority", "call_local", "reliable")
 func _explosion(grenade_id: int, type: int, origin: Vector3, radius: float) -> void:
-	var g: Grenade = _grenades.get(grenade_id)
+	var g: Node = _projectiles.get(grenade_id)
 	if is_instance_valid(g):
 		g.queue_free()
-	_grenades.erase(grenade_id)
+	_projectiles.erase(grenade_id)
 	if radius > 0.0:
 		GrenadeThrower.spawn_effect(get_parent(), type as Grenade.Type, origin, radius)
+
+
+# --- Rockets -------------------------------------------------------------------
+
+## Server: fire a real rocket and tell clients to show a look-alike.
+func spawn_rocket(shooter: Player, pos: Vector3, vel: Vector3) -> void:
+	var id := _new_projectile_id()
+	var r := Rocket.create(shooter, vel, id)
+	r.position = pos
+	get_parent().add_child(r)
+	_show_rocket.rpc(id, pos, vel)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _show_rocket(id: int, pos: Vector3, vel: Vector3) -> void:
+	var r := Rocket.create(null, vel, id)
+	r.position = pos
+	_projectiles[id] = r
+	get_parent().add_child(r)
+
+
+# --- Hitscan with lag compensation ---------------------------------------------
+
+## Server, every tick: remember where every player's hull was.
+func _record_positions() -> void:
+	var now := {}
+	for p: Player in players_root.get_children():
+		now[p.peer_id] = [p.center(), p.hull_half_segment()]
+	_pos_history[tick] = now
+	_pos_history.erase(tick - LAG_COMP_TICKS - 1)
+
+
+## Server: trace bullets/pellets. Other players are checked where the shooter
+## saw them (view_tick), up to 1 s in the past; walls are checked as they are now.
+func hitscan(shooter: Player, origin: Vector3, dirs: Array[Vector3], max_range: float,
+		damage_each: float, knockback: float, view_tick: int) -> void:
+	var space := shooter.get_world_3d().direct_space_state
+	var rewind: Dictionary = _pos_history.get(clampi(view_tick, tick - LAG_COMP_TICKS, tick), {})
+	var damage := {}
+	var ends: Array[Vector3] = []
+	for d in dirs:
+		var query := PhysicsRayQueryParameters3D.create(origin, origin + d * max_range, 1)
+		var wall := space.intersect_ray(query)
+		var best_dist := max_range if wall.is_empty() else origin.distance_to(wall.position)
+		var best: Player = null
+		for p: Player in players_root.get_children():
+			if p == shooter:
+				continue
+			var hull: Array = rewind.get(p.peer_id, [p.center(), p.hull_half_segment()])
+			var a: Vector3 = hull[0] - Vector3.UP * hull[1]
+			var b: Vector3 = hull[0] + Vector3.UP * hull[1]
+			var pts := Geometry3D.get_closest_points_between_segments(origin, origin + d * best_dist, a, b)
+			if pts[0].distance_to(pts[1]) <= Player.HULL_RADIUS + 0.05:
+				best_dist = origin.distance_to(pts[0])
+				best = p
+		ends.append(origin + d * best_dist)
+		if best:
+			damage[best] = damage.get(best, 0.0) + damage_each
+	for p: Player in damage:
+		var dir := (p.center() - origin).normalized()
+		p.launch(p.velocity + dir * damage[p] * knockback)
+		p.take_damage(damage[p])
+	_tracers.rpc(origin, ends)
+
+
+## Tracer lines and impact puffs, on every machine.
+@rpc("authority", "call_local", "unreliable")
+func _tracers(origin: Vector3, ends: Array) -> void:
+	var im := ImmediateMesh.new()
+	var lines := MeshInstance3D.new()
+	lines.mesh = im
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(1.0, 0.9, 0.6, 0.8)
+	im.surface_begin(Mesh.PRIMITIVE_LINES, m)
+	# Start the line a little ahead of the eye so it doesn't cover the screen.
+	for e: Vector3 in ends:
+		im.surface_add_vertex(origin + (e - origin).normalized() * 1.0)
+		im.surface_add_vertex(e)
+	im.surface_end()
+	get_parent().add_child(lines)
+	var tw := lines.create_tween()
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.12)
+	tw.tween_callback(lines.queue_free)

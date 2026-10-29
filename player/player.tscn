@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://player/player_movement.gd" id="1_move"]
 [ext_resource type="Script" path="res://grenades/grenade_thrower.gd" id="2_gren"]
 [ext_resource type="Script" path="res://player/hud.gd" id="3_hud"]
+[ext_resource type="Script" path="res://weapons/weapon_manager.gd" id="4_weap"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_hull"]
 resource_local_to_scene = true
@@ -44,6 +45,9 @@ near = 0.05
 
 [node name="Grenades" type="Node" parent="."]
 script = ExtResource("2_gren")
+
+[node name="Weapons" type="Node" parent="."]
+script = ExtResource("4_weap")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("3_hud")

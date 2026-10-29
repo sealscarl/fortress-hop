@@ -13,6 +13,7 @@ extends CharacterBody3D
 ## so you can tune it live in the Inspector while the game runs.
 
 const QUAKE_UNITS_PER_METER := 32.0
+const HULL_RADIUS := 0.4
 
 @export_group("Jumping")
 ## Hold jump to keep hopping the instant you land. Off = classic tap-to-jump
@@ -65,6 +66,7 @@ const QUAKE_UNITS_PER_METER := 32.0
 @onready var hud: CanvasLayer = $HUD
 @onready var speed_label: Label = $HUD/Speed
 @onready var grenades: GrenadeThrower = $Grenades
+@onready var weapons: WeaponManager = $Weapons
 
 var peer_id := 1
 ## True for the player this machine controls.
@@ -84,6 +86,9 @@ var _launched := false
 ## instantly, every frame; commands sample it each tick).
 var look_yaw := 0.0
 var look_pitch := 0.0
+## Mouse-wheel weapon switches arrive as instant press+release events, so
+## they're caught here and handed to the next command.
+var _wheel_flags := 0
 
 
 func _ready() -> void:
@@ -104,7 +109,7 @@ func _add_body_mesh() -> void:
 	var mesh := MeshInstance3D.new()
 	mesh.name = "Body"
 	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.4
+	capsule.radius = HULL_RADIUS
 	capsule.height = stand_height
 	mesh.mesh = capsule
 	var m := StandardMaterial3D.new()
@@ -122,6 +127,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		look_pitch = clampf(look_pitch - deg_to_rad(event.relative.y * mouse_sensitivity),
 			deg_to_rad(-89.0), deg_to_rad(89.0))
 		apply_look()
+	elif event.is_action_pressed("weapon_next"):
+		_wheel_flags |= PlayerCmd.NEXT_WEAPON
+	elif event.is_action_pressed("weapon_prev"):
+		_wheel_flags |= PlayerCmd.PREV_WEAPON
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed \
@@ -150,6 +159,12 @@ func build_cmd(seq: int) -> PlayerCmd:
 		if Input.is_action_pressed("crouch"): c.flags |= PlayerCmd.CROUCH
 		if Input.is_action_just_pressed("grenade_1"): c.flags |= PlayerCmd.GRENADE_1
 		if Input.is_action_just_pressed("grenade_2"): c.flags |= PlayerCmd.GRENADE_2
+		if Input.is_action_pressed("fire"): c.flags |= PlayerCmd.FIRE
+		if Input.is_action_just_pressed("reload"): c.flags |= PlayerCmd.RELOAD
+		if Input.is_action_just_pressed("weapon_1"): c.weapon_slot = 1
+		if Input.is_action_just_pressed("weapon_2"): c.weapon_slot = 2
+		c.flags |= _wheel_flags
+	_wheel_flags = 0
 	if auto_hop: c.flags |= PlayerCmd.AUTO_HOP
 	return c
 
@@ -315,6 +330,11 @@ func set_remote_crouched(value: bool) -> void:
 		_apply_hull(crouch_height if crouched else stand_height)
 
 
+## Half the length of the hull capsule's inner segment (for hitscan checks).
+func hull_half_segment() -> float:
+	return (collision.shape as CapsuleShape3D).height * 0.5 - HULL_RADIUS
+
+
 ## Middle of the player's hull, which is what explosions measure distance to.
 func center() -> Vector3:
 	return global_position + Vector3.UP * collision.position.y
@@ -345,6 +365,7 @@ func respawn() -> void:
 	health = max_health
 	_launched = false
 	grenades.refill()
+	weapons.reset()
 
 
 func _update_hud() -> void:

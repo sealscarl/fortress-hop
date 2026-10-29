@@ -11,3 +11,4 @@ func _on_body_entered(body: Node3D) -> void:
 	if body is Player and multiplayer.is_server():
 		body.health = body.max_health
 		body.grenades.refill()
+		body.weapons.refill()

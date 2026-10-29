@@ -105,4 +105,4 @@ A green **resupply pad** right of spawn refills health and grenades. Dying also 
 
 ## Controls
 
-E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 primes a frag · Q primes a conc · either key throws what you're holding · Esc frees the mouse, click to recapture.
+E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 primes a frag · Q primes a conc · either key throws what you're holding · Mouse 1 fire · R reload · 1/2 or mouse wheel switch weapons (see docs/weapons.md) · Esc frees the mouse, click to recapture.
