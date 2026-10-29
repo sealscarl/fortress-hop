@@ -305,9 +305,9 @@ func _apply_friction(delta: float) -> void:
 		return
 	var control := maxf(speed, stop_speed)
 	var new_speed := maxf(speed - control * friction * delta, 0.0)
-	var scale := new_speed / speed
-	velocity.x *= scale
-	velocity.z *= scale
+	var factor := new_speed / speed
+	velocity.x *= factor
+	velocity.z *= factor
 
 
 ## Quake PM_Accelerate: only adds speed along wish_dir up to wish_speed.

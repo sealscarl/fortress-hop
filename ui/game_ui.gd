@@ -93,7 +93,7 @@ func _process(_delta: float) -> void:
 	if ml and me:
 		var head := "[b][color=#%s]RED %d[/color]  —  [color=#%s]BLUE %d[/color][/b]\n" % [
 			TEAM_COLORS[0].to_html(false), ml.team_scores[0], TEAM_COLORS[1].to_html(false), ml.team_scores[1]]
-		_status.text = head + "\n".join(ml.status_lines(me.team))
+		_status.text = head + "\n".join(ml.status_lines())
 		var carrying := ""
 		for f in ml.flags:
 			if f.carrier == me:

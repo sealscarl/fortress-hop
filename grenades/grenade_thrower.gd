@@ -101,7 +101,7 @@ func tick(cmd: PlayerCmd, delta: float) -> void:
 	if timer_left <= 0.0:
 		if held_type != -1:
 			# Held too long: it goes off in your hand.
-			var t: Grenade.Type = held_type
+			var t := held_type as Grenade.Type
 			held_type = -1
 			detonate(t, player.center(), true)
 		timer_type = -1

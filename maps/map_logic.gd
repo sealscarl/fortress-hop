@@ -475,7 +475,7 @@ func on_player_gone(p: Player) -> void:
 	on_player_died(p)
 
 
-func _security_down(s: Dictionary, p: Player) -> void:
+func _security_down(s: Dictionary, _presser: Player) -> void:
 	s.offline_left = s.duration
 	_set_lasers(s.group, false)
 	send_all("_announce_team", [s.msg_down_team, s.owner, s.msg_down_enemy, "sec_down"])
@@ -519,7 +519,8 @@ func _name(p: Player) -> String:
 func _now() -> float:
 	if Game.instance == null:
 		return 0.0
-	return (Game.instance.tick if multiplayer.is_server() else Game.instance._server_tick) / float(Engine.physics_ticks_per_second)
+	var ticks: float = float(Game.instance.tick) if multiplayer.is_server() else Game.instance._server_tick
+	return ticks / Engine.physics_ticks_per_second
 
 
 func _move_plats() -> void:
@@ -694,7 +695,7 @@ func _play(sound: String) -> void:
 
 
 ## For the HUD: one line per flag and security system.
-func status_lines(my_team: int) -> Array[String]:
+func status_lines() -> Array[String]:
 	var lines: Array[String] = []
 	for f in flags:
 		var where := "HOME"
