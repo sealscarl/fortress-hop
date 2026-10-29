@@ -3,6 +3,11 @@ extends CharacterBody3D
 ## Quake / TFC-style player movement: ground friction, ground acceleration,
 ## air strafing, auto-hop and crouch-jumping.
 ##
+## Movement runs from PlayerCmd input commands via simulate(), so the exact
+## same code runs on your machine (prediction) and on the server (authority).
+## Game (maps/game.gd) drives the ticks; this node never reads input on its own
+## except mouse look for the local player.
+##
 ## Units: 1 Godot unit = 1 meter. Classic Quake values are converted with
 ## 1 m = 32 Quake units (so 320 ups = 10 m/s). Every value below is exported,
 ## so you can tune it live in the Inspector while the game runs.
@@ -56,31 +61,67 @@ const QUAKE_UNITS_PER_METER := 32.0
 
 @onready var collision: CollisionShape3D = $CollisionShape3D
 @onready var head: Node3D = $Head
+@onready var camera: Camera3D = $Head/Camera3D
+@onready var hud: CanvasLayer = $HUD
 @onready var speed_label: Label = $HUD/Speed
 @onready var grenades: GrenadeThrower = $Grenades
 
+var peer_id := 1
+## True for the player this machine controls.
+var is_local := false
+
 var crouched := false
 var health := 100.0
-var spawn_transform: Transform3D
+## Floor contact from the last simulated tick (part of the predicted state,
+## so a replay starts from exactly what the server saw).
+var on_floor := false
+var _prev_jump := false
 ## Set by explosions so the next tick treats you as airborne, even if you
 ## were standing on the floor when the blast hit.
 var _launched := false
 
+## Where the local player is looking right now (mouse look is applied
+## instantly, every frame; commands sample it each tick).
+var look_yaw := 0.0
+var look_pitch := 0.0
+
 
 func _ready() -> void:
-	spawn_transform = global_transform
 	health = max_health
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_apply_hull(stand_height)
 	head.position.y = stand_eye_height
+	look_yaw = rotation.y
+	if is_local:
+		camera.current = true
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	else:
+		camera.current = false
+		hud.visible = false
+		_add_body_mesh()
+
+
+func _add_body_mesh() -> void:
+	var mesh := MeshInstance3D.new()
+	mesh.name = "Body"
+	var capsule := CapsuleMesh.new()
+	capsule.radius = 0.4
+	capsule.height = stand_height
+	mesh.mesh = capsule
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color.from_hsv(fmod(peer_id * 0.618034, 1.0), 0.6, 0.9)
+	mesh.material_override = m
+	add_child(mesh)
+	mesh.position.y = stand_height * 0.5
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not is_local:
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(deg_to_rad(-event.relative.x * mouse_sensitivity))
-		head.rotation.x = clampf(
-			head.rotation.x - deg_to_rad(event.relative.y * mouse_sensitivity),
+		look_yaw -= deg_to_rad(event.relative.x * mouse_sensitivity)
+		look_pitch = clampf(look_pitch - deg_to_rad(event.relative.y * mouse_sensitivity),
 			deg_to_rad(-89.0), deg_to_rad(89.0))
+		apply_look()
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed \
@@ -89,21 +130,51 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _physics_process(delta: float) -> void:
-	_update_crouch()
+func apply_look() -> void:
+	rotation.y = look_yaw
+	head.rotation.x = look_pitch
 
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var wish_dir := (transform.basis * Vector3(input.x, 0.0, input.y))
+
+## Samples this tick's input for the local player. Call from a physics tick.
+func build_cmd(seq: int) -> PlayerCmd:
+	var c := PlayerCmd.new()
+	c.seq = seq
+	c.yaw = look_yaw
+	c.pitch = look_pitch
+	# Ignore game keys while the mouse is freed (Esc), e.g. typing in a menu.
+	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
+		or DisplayServer.get_name() == "headless"
+	if captured:
+		c.move = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		if Input.is_action_pressed("jump"): c.flags |= PlayerCmd.JUMP
+		if Input.is_action_pressed("crouch"): c.flags |= PlayerCmd.CROUCH
+		if Input.is_action_just_pressed("grenade_1"): c.flags |= PlayerCmd.GRENADE_1
+		if Input.is_action_just_pressed("grenade_2"): c.flags |= PlayerCmd.GRENADE_2
+	if auto_hop: c.flags |= PlayerCmd.AUTO_HOP
+	return c
+
+
+## Runs one tick of movement from a command.
+func simulate(cmd: PlayerCmd, delta: float) -> void:
+	rotation.y = cmd.yaw
+	head.rotation.x = cmd.pitch
+	_update_crouch(cmd.has(PlayerCmd.CROUCH))
+
+	var wish_dir := transform.basis * Vector3(cmd.move.x, 0.0, cmd.move.y)
 	wish_dir.y = 0.0
 	wish_dir = wish_dir.normalized()
-	var wish_speed := max_speed * (crouch_speed_scale if crouched and is_on_floor() else 1.0)
-	if input == Vector2.ZERO:
+	var wish_speed := max_speed * (crouch_speed_scale if crouched and on_floor else 1.0)
+	if cmd.move == Vector2.ZERO:
 		wish_speed = 0.0
 
-	var on_ground := is_on_floor() and not _launched
+	var on_ground := on_floor and not _launched
 	_launched = false
 
-	if on_ground and _wants_jump():
+	var jump_held := cmd.has(PlayerCmd.JUMP)
+	var wants_jump := jump_held if cmd.has(PlayerCmd.AUTO_HOP) else (jump_held and not _prev_jump)
+	_prev_jump = jump_held
+
+	if on_ground and wants_jump:
 		# Jump before friction is applied: landing and jumping on the same
 		# tick keeps all your speed. This is what makes bhopping possible.
 		velocity.y = jump_velocity
@@ -118,22 +189,33 @@ func _physics_process(delta: float) -> void:
 
 	_cap_horizontal_speed()
 	move_and_slide()
+	on_floor = is_on_floor()
 
-	if global_position.y < -50.0:
+	if global_position.y < -50.0 and multiplayer.is_server():
 		respawn()
 
-	_update_hud()
+
+## Everything a replay needs to restart from a server-confirmed tick.
+func get_state() -> Array:
+	return [global_position, velocity, crouched, on_floor, _prev_jump, _launched]
+
+
+func set_state(s: Array) -> void:
+	global_position = s[0]
+	velocity = s[1]
+	if s[2] != crouched:
+		crouched = s[2]
+		_apply_hull(crouch_height if crouched else stand_height)
+	on_floor = s[3]
+	_prev_jump = s[4]
+	_launched = s[5]
 
 
 func _process(delta: float) -> void:
 	var target := crouch_eye_height if crouched else stand_eye_height
 	head.position.y = move_toward(head.position.y, target, delta * 6.0)
-
-
-func _wants_jump() -> bool:
-	if auto_hop:
-		return Input.is_action_pressed("jump")
-	return Input.is_action_just_pressed("jump")
+	if is_local:
+		_update_hud()
 
 
 ## Quake PM_Friction.
@@ -187,17 +269,16 @@ func _cap_horizontal_speed() -> void:
 
 ## Crouching on the ground lowers your head. Crouching in the air pulls your
 ## feet up instead (head stays put), so crouch-jumping clears higher ledges.
-func _update_crouch() -> void:
+func _update_crouch(want: bool) -> void:
 	var diff := stand_height - crouch_height
-	var want := Input.is_action_pressed("crouch")
 	if want and not crouched:
 		crouched = true
 		_apply_hull(crouch_height)
-		if not is_on_floor():
+		if not on_floor:
 			global_position.y += diff
 			head.position.y -= diff
 	elif not want and crouched:
-		if is_on_floor():
+		if on_floor:
 			if test_move(global_transform, Vector3.UP * diff):
 				return  # Something overhead; stay crouched.
 			crouched = false
@@ -220,6 +301,18 @@ func _apply_hull(height: float) -> void:
 	var capsule := collision.shape as CapsuleShape3D
 	capsule.height = height
 	collision.position.y = height * 0.5
+	if has_node("Body"):
+		var body := $Body as MeshInstance3D
+		(body.mesh as CapsuleMesh).height = height
+		body.position.y = height * 0.5
+
+
+## Remote players on a client aren't simulated; Game moves them from
+## snapshots and calls this to show crouching.
+func set_remote_crouched(value: bool) -> void:
+	if value != crouched:
+		crouched = value
+		_apply_hull(crouch_height if crouched else stand_height)
 
 
 ## Middle of the player's hull, which is what explosions measure distance to.
@@ -233,6 +326,7 @@ func launch(new_velocity: Vector3) -> void:
 	_launched = true
 
 
+## Server only.
 func take_damage(amount: float) -> void:
 	health -= amount
 	if health <= 0.0:
@@ -240,12 +334,17 @@ func take_damage(amount: float) -> void:
 		respawn()
 
 
+## Server only: back to a random spawn point with full health and grenades.
+## The owning client snaps to it on the next snapshot.
 func respawn() -> void:
-	global_transform = spawn_transform
+	var spawns := get_tree().get_nodes_in_group("spawn_point")
+	var at: Node3D = spawns.pick_random() if spawns.size() else null
+	global_position = at.global_position if at else Vector3(0, 0.1, 60)
+	rotation.y = at.rotation.y if at else 0.0
 	velocity = Vector3.ZERO
 	health = max_health
-	if is_node_ready():
-		grenades.refill()
+	_launched = false
+	grenades.refill()
 
 
 func _update_hud() -> void:

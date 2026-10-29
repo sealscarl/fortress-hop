@@ -13,18 +13,22 @@ const COLORS := {
 var type: Type
 var fuse_left: float
 var thrower: GrenadeThrower
+var is_real := false   ## False for a client-side look-alike.
+var net_id := 0
 var _mesh: MeshInstance3D
 
 
-static func spawn(p_thrower: GrenadeThrower, p_type: Type, pos: Vector3,
-		vel: Vector3, fuse: float) -> Grenade:
+## Game spawns grenades on the server (real ones, with a fuse and a thrower)
+## and on clients (look-alikes with no fuse, removed when the server says
+## it exploded). Both fly with the same physics, so they look in sync.
+static func create(p_type: Type, p_fuse: float, p_thrower: GrenadeThrower, p_id: int) -> Grenade:
 	var g := Grenade.new()
-	g.thrower = p_thrower
 	g.type = p_type
-	g.fuse_left = fuse
-	p_thrower.get_tree().current_scene.add_child(g)
-	g.global_position = pos
-	g.linear_velocity = vel
+	g.fuse_left = p_fuse
+	g.thrower = p_thrower
+	g.is_real = p_thrower != null
+	g.net_id = p_id
+	g.name = "Grenade%d" % p_id
 	return g
 
 
@@ -68,8 +72,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not is_real:
+		return  # Client look-alike: the server decides when it goes off.
 	fuse_left -= delta
 	if fuse_left <= 0.0:
 		if is_instance_valid(thrower):
-			thrower.detonate(type, global_position, false)
+			thrower.detonate(type, global_position, false, net_id)
+		else:
+			# Thrower left the game: just remove it everywhere.
+			Game.instance.announce_explosion(net_id, type, global_position, 0.0)
 		queue_free()

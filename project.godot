@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="Fortress-Hop"
-run/main_scene="res://maps/test_hop.tscn"
+run/main_scene="res://ui/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+Net="*res://net/network.gd"
 
 [display]
 

@@ -2,6 +2,8 @@ class_name GrenadeThrower
 extends Node
 ## Lives on the player. Handles double-tap grenades (tap to prime, tap again
 ## to throw), the fuse countdown (HUD + beeps), and explosion physics.
+## Grenade logic and explosions run on the server only; clients get counts
+## and the fuse timer from snapshots and play effects when told to.
 ##
 ## Conc numbers come from Team Fortress Classic, as reverse-engineered by
 ## Momentum Mod (accurate to about 0.1% of TFC), converted to meters
@@ -60,12 +62,15 @@ const CONC_SOUND := preload("res://sounds/explode_conc.wav")
 
 signal changed  ## Counts, prime state or timer changed (for the HUD).
 
+## On the server these are authoritative. On a client they're copied from
+## server snapshots (and the timer counts down locally in between).
 var frags := 0
 var concs := 0
 var held_type := -1          ## Grenade.Type in hand, or -1.
 var timer_type := -1         ## Type shown on the HUD timer (keeps running after a throw).
 var timer_left := 0.0
 var _last_tick_step := -1
+var _last_timer_seen := 0.0
 
 @onready var player: Player = get_parent()
 @onready var _beep := AudioStreamPlayer.new()
@@ -83,16 +88,16 @@ func refill() -> void:
 	changed.emit()
 
 
-func _physics_process(delta: float) -> void:
-	if Input.is_action_just_pressed("grenade_1"):
+## Server only: one tick of grenade logic, driven by the player's command.
+func tick(cmd: PlayerCmd, delta: float) -> void:
+	if cmd.has(PlayerCmd.GRENADE_1):
 		_press(Grenade.Type.FRAG)
-	if Input.is_action_just_pressed("grenade_2"):
+	elif cmd.has(PlayerCmd.GRENADE_2):
 		_press(Grenade.Type.CONC)
 
 	if timer_type == -1:
 		return
 	timer_left -= delta
-	_play_ticks()
 	if timer_left <= 0.0:
 		if held_type != -1:
 			# Held too long: it goes off in your hand.
@@ -101,6 +106,27 @@ func _physics_process(delta: float) -> void:
 			detonate(t, player.center(), true)
 		timer_type = -1
 	changed.emit()
+
+
+## Client: copy the server's view of our grenades from a snapshot.
+func apply_snapshot(s: Array) -> void:
+	frags = s[0]
+	concs = s[1]
+	held_type = s[2]
+	timer_type = s[3]
+	timer_left = s[4]
+	changed.emit()
+
+
+func snapshot() -> Array:
+	return [frags, concs, held_type, timer_type, timer_left]
+
+
+func _process(delta: float) -> void:
+	if not multiplayer.is_server() and timer_type != -1:
+		timer_left = maxf(timer_left - delta, 0.0)  # Smooth between snapshots.
+	if player.is_local:
+		_play_ticks()
 
 
 ## Either grenade key throws whatever you're holding; with nothing in hand,
@@ -122,23 +148,29 @@ func _prime(type: Grenade.Type) -> void:
 	held_type = type
 	timer_type = type
 	timer_left = fuse_time
-	_last_tick_step = -1
 	changed.emit()
 
 
 func _throw() -> void:
-	var cam := player.get_node("Head/Camera3D") as Camera3D
+	var cam := player.camera
 	var aim := -cam.global_basis.z
 	# Tilt the throw upward around the camera's right axis.
 	aim = aim.rotated(cam.global_basis.x.normalized(), deg_to_rad(throw_pitch_up_deg)).normalized()
 	var vel := aim * throw_speed + player.velocity * inherit_velocity
-	Grenade.spawn(self, held_type, player.center(), vel, timer_left)
+	Game.instance.spawn_grenade(self, held_type, player.center(), vel, timer_left)
 	held_type = -1
 	changed.emit()
 
 
 ## Beeps once per second, then four quick beeps in the final second.
+## Local player only.
 func _play_ticks() -> void:
+	if timer_type == -1:
+		_last_timer_seen = 0.0
+		return
+	if timer_left > _last_timer_seen + 0.5:
+		_last_tick_step = -1  # A new grenade was primed.
+	_last_timer_seen = timer_left
 	var step: int
 	if timer_left > 1.0:
 		step = int(ceil(timer_left))           # 3, 2 -> one beep per second
@@ -154,13 +186,15 @@ func _play_ticks() -> void:
 func drop_held() -> void:
 	if held_type == -1:
 		return
-	Grenade.spawn(self, held_type, player.center(), Vector3.ZERO, timer_left)
+	Game.instance.spawn_grenade(self, held_type, player.center(), Vector3.ZERO, timer_left)
 	held_type = -1
 	changed.emit()
 
 
-func detonate(type: Grenade.Type, origin: Vector3, handheld: bool) -> void:
-	_spawn_effect(type, origin)
+## Server only. grenade_id is 0 for a grenade that went off in a hand.
+func detonate(type: Grenade.Type, origin: Vector3, handheld: bool, grenade_id := 0) -> void:
+	var radius := frag_radius if type == Grenade.Type.FRAG else conc_radius
+	Game.instance.announce_explosion(grenade_id, type, origin, radius)
 	if type == Grenade.Type.FRAG:
 		_frag_explode(origin, handheld)
 	else:
@@ -237,9 +271,8 @@ func _handheld_velocity(v: Vector3) -> Vector3:
 		v.z * hh_lateral_power)
 
 
-func _spawn_effect(type: Grenade.Type, origin: Vector3) -> void:
-	var scene := get_tree().current_scene
-	var radius := frag_radius if type == Grenade.Type.FRAG else conc_radius
+## Flash, light and sound. Runs on every machine for every explosion.
+static func spawn_effect(scene: Node, type: Grenade.Type, origin: Vector3, radius: float) -> void:
 	var color := Color(1.0, 0.55, 0.15) if type == Grenade.Type.FRAG else Color(0.5, 0.8, 1.0)
 
 	var flash := MeshInstance3D.new()
