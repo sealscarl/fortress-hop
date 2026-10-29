@@ -13,6 +13,7 @@ const FIRE := 32         ## Fire held.
 const RELOAD := 64       ## Reload key went down this tick.
 const NEXT_WEAPON := 128
 const PREV_WEAPON := 256
+const DETONATE := 512    ## Detonate pipe bombs.
 
 var seq := 0
 var move := Vector2.ZERO   ## x = strafe (right +), y = forward/back (back +).

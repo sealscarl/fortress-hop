@@ -15,13 +15,17 @@ signal status_changed(text: String)
 
 var dedicated := false
 var last_status := ""
+var player_name := "Player"
 
 
 func _ready() -> void:
 	multiplayer.server_disconnected.connect(func(): leave("Lost connection to the server."))
 	multiplayer.connection_failed.connect(func(): leave("Couldn't connect to the server."))
+	_load_name()
 	for arg in OS.get_cmdline_args() + OS.get_cmdline_user_args():
-		if arg == "--host":
+		if arg.begins_with("--name="):
+			player_name = arg.get_slice("=", 1)
+		elif arg == "--host":
 			host.call_deferred(false)
 		elif arg == "--server":
 			host.call_deferred(true)
@@ -72,3 +76,23 @@ func leave(reason := "") -> void:
 func _set_status(text: String) -> void:
 	last_status = text
 	status_changed.emit(text)
+
+
+const _SETTINGS := "user://settings.cfg"
+
+
+func set_player_name(n: String) -> void:
+	n = n.strip_edges().substr(0, 24)
+	if n.is_empty():
+		return
+	player_name = n
+	var cfg := ConfigFile.new()
+	cfg.load(_SETTINGS)
+	cfg.set_value("player", "name", n)
+	cfg.save(_SETTINGS)
+
+
+func _load_name() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(_SETTINGS) == OK:
+		player_name = cfg.get_value("player", "name", player_name)

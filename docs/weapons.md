@@ -1,6 +1,6 @@
 # Weapons
 
-All tuning values are on the Player's **Weapons** node in the Inspector (`weapons/weapon_manager.gd`). 1 m = 32 units.
+All weapon numbers live in `weapons/weapon_stats.gd`; which class carries what is in `player/classes.gd` (see `docs/classes.md`). 1 m = 32 units.
 
 ## Controls (placeholders, rebind in Project Settings → Input Map)
 
@@ -8,7 +8,8 @@ All tuning values are on the Player's **Weapons** node in the Inspector (`weapon
 | --- | --- |
 | Fire | Mouse 1 |
 | Reload | R |
-| Rocket launcher / Shotgun | 1 / 2 |
+| Weapon slots | 1 / 2 / 3 |
+| Detonate pipe bombs | Mouse 5 |
 | Next / previous weapon | Mouse wheel down / up |
 
 ## Reload rules (every weapon with a clip, TFC/FF/TF2-style)
@@ -43,6 +44,34 @@ Rockets fly straight with no gravity and explode on the first wall or player the
 | Reload | 0.75 s first shell, 0.5 s each after |
 | Pellets | 6 × 6 damage, 4° spread (first pellet dead center) |
 | Range | 100 m |
+
+## Nailgun (Scout) and super nailgun (Medic)
+
+| Setting | Nailgun | Super nailgun |
+| --- | --- | --- |
+| Damage per nail | 9 | 12 |
+| Fire interval | 0.1 s | 0.1 s |
+| Ammo | 200, no reload | 150, no reload |
+| Nail speed | 31.25 m/s (1000 ups) | same |
+
+Nails are straight-flying projectiles, like small rockets that don't explode.
+
+## Grenade launcher and pipe bombs (Demoman)
+
+| Setting | Grenade launcher | Pipe bombs |
+| --- | --- | --- |
+| Clip / reserve | 6 / 30 | 6 / 30 |
+| Fire interval | 0.6 s | 0.6 s |
+| Reload | 1.0 s first, 0.6 s each | same |
+| Damage / radius | 100 / 5 m | 90 / 5 m |
+| Goes off | After 2.5 s, or on touching an enemy before its first bounce | Only on Mouse 5 (all at once) |
+| Max out at once | — | 8 (the oldest goes off) |
+
+Both bounce like hand grenades. Self-damage × 0.5, so pipe jumps work.
+
+## Medkit (Medic)
+
+Melee, 1.8 m reach, 0.4 s per swing. Heals a teammate 25 (up to their max health) or hits an enemy for 9. Lag-compensated like the shotgun.
 
 ## Multiplayer
 

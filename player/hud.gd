@@ -41,17 +41,36 @@ func _process(_delta: float) -> void:
 		timer_label.modulate = color
 		timer_label.text = "%s %.1f" % ["FRAG" if is_frag else "CONC", maxf(g.timer_left, 0.0)]
 
-	status_label.text = "HP %d     FRAG %d     CONC %d" % [
-		ceili(player.health), g.frags, g.concs]
+	if player.class_id == -1:
+		status_label.text = "F2 team  ·  F1 class"
+		_ammo.text = ""
+		return
+	var parts := ["%s   HP %d / %d" % [PlayerClasses.stat(player.class_id, "name").to_upper(),
+		ceili(player.health), roundi(player.max_health)]]
+	if g.max_frags > 0: parts.append("FRAG %d" % g.frags)
+	if g.max_concs > 0: parts.append("CONC %d" % g.concs)
+	if player.pending_class != -1:
+		parts.append("next: %s" % PlayerClasses.stat(player.pending_class, "name"))
+	status_label.text = "     ".join(parts)
+	status_label.modulate = Color(1, 0.4, 0.35) if player.health < player.max_health * 0.3 else Color.WHITE
 
 	var w := player.weapons
+	if w.kinds.is_empty():
+		_ammo.text = ""
+		return
 	var k := w.current
+	var size: int = w.stat(k, "clip")
 	var state := ""
 	if w.switching > 0.0:
 		state = "\n..."
 	elif w.reloading:
 		state = "\nRELOADING"
-	elif w.clip[k] == 0 and w.reserve[k] == 0:
+	elif (size > 0 and w.clip[k] == 0 or size == 0) and w.reserve[k] == 0:
 		state = "\nOUT OF AMMO"
-	_ammo.text = "%s   %d / %d%s" % [w.weapon_name(k), w.clip[k], w.reserve[k], state]
-	_ammo.modulate = Color(1, 0.45, 0.35) if w.clip[k] == 0 else Color.WHITE
+	var count := ""
+	if size > 0:
+		count = "%d / %d" % [w.clip[k], w.reserve[k]]
+	elif w.reserve[k] >= 0:
+		count = "%d" % w.reserve[k]
+	_ammo.text = "%s   %s%s" % [w.stat(k, "name"), count, state]
+	_ammo.modulate = Color(1, 0.45, 0.35) if size > 0 and w.clip[k] == 0 else Color.WHITE

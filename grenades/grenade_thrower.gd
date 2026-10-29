@@ -202,18 +202,22 @@ func detonate(type: Grenade.Type, origin: Vector3, handheld: bool, grenade_id :=
 
 
 func _frag_explode(origin: Vector3, handheld: bool) -> void:
+	if not handheld:
+		Explosions.radial(get_tree(), origin, frag_damage, frag_radius, frag_knockback,
+			player, self_damage_scale)
+		return
+	# In your hand: you get the directional handheld push and half damage;
+	# enemies around you get the normal blast. Teammates are untouched.
 	for p: Player in get_tree().get_nodes_in_group("player"):
-		var offset := p.center() - origin
-		var dist := offset.length()
-		if dist > frag_radius:
+		if not p.alive or p.center().distance_to(origin) > frag_radius:
 			continue
-		var points := frag_damage * (1.0 - dist / frag_radius)
-		if handheld and p == player:
+		if p == player:
 			p.launch(p.velocity + _handheld_frag_dir(p.velocity) * hh_frag_push)
+			p.take_damage(frag_damage * self_damage_scale, player)
 		else:
-			var dir := offset / dist if dist > 0.05 else Vector3.UP
-			p.launch(p.velocity + dir * points * frag_knockback)
-		p.take_damage(points * (self_damage_scale if p == player else 1.0))
+			var offset := p.center() - origin
+			var points := frag_damage * (1.0 - offset.length() / frag_radius)
+			p.hurt(points, player, offset.normalized() * points * frag_knockback)
 
 
 ## A frag in your hand pushes you the way you're already going. Upward
@@ -224,8 +228,12 @@ func _handheld_frag_dir(v: Vector3) -> Vector3:
 	return dir.normalized() if dir.length() > 0.5 else Vector3.UP
 
 
+## Concs push everyone in range, teammates included (as in TFC), but never
+## do damage.
 func _conc_explode(origin: Vector3, handheld: bool) -> void:
 	for p: Player in get_tree().get_nodes_in_group("player"):
+		if not p.alive:
+			continue
 		var offset := p.center() - origin
 		var dist := offset.length()
 		if dist > conc_radius:

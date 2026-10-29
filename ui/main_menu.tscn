@@ -39,6 +39,18 @@ theme_override_font_sizes/font_size = 48
 text = "FORTRESS HOP"
 horizontal_alignment = 1
 
+[node name="NameLabel" type="Label" parent="Center/Box"]
+layout_mode = 2
+text = "Your name"
+
+[node name="Name" type="LineEdit" parent="Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+max_length = 24
+placeholder_text = "Player"
+
 [node name="Host" type="Button" parent="Center/Box"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 48)

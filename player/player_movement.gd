@@ -72,6 +72,12 @@ var peer_id := 1
 ## True for the player this machine controls.
 var is_local := false
 
+var team := 0                 ## 0 = Red, 1 = Blue.
+var class_id := -1            ## PlayerClasses.Id, or -1 before picking one.
+var pending_class := -1       ## Class to switch to at the next respawn.
+var alive := false            ## False until a class is picked (and while dead).
+var display_name := ""
+
 var crouched := false
 var health := 100.0
 ## Floor contact from the last simulated tick (part of the predicted state,
@@ -98,11 +104,11 @@ func _ready() -> void:
 	look_yaw = rotation.y
 	if is_local:
 		camera.current = true
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	else:
 		camera.current = false
 		hud.visible = false
 		_add_body_mesh()
+	set_alive(alive)
 
 
 func _add_body_mesh() -> void:
@@ -112,11 +118,63 @@ func _add_body_mesh() -> void:
 	capsule.radius = HULL_RADIUS
 	capsule.height = stand_height
 	mesh.mesh = capsule
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color.from_hsv(fmod(peer_id * 0.618034, 1.0), 0.6, 0.9)
-	mesh.material_override = m
+	mesh.material_override = StandardMaterial3D.new()
 	add_child(mesh)
 	mesh.position.y = stand_height * 0.5
+	_update_team_color()
+
+
+func _update_team_color() -> void:
+	var body := get_node_or_null("Body") as MeshInstance3D
+	if body:
+		(body.material_override as StandardMaterial3D).albedo_color = PlayerClasses.TEAM_COLORS[team]
+
+
+# --- Class, team, life -----------------------------------------------------------
+
+## Sets health, speed, weapons and grenades from the class table.
+func apply_class(id: int) -> void:
+	class_id = id
+	max_health = PlayerClasses.stat(id, "health")
+	max_speed = PlayerClasses.stat(id, "speed_ups") / QUAKE_UNITS_PER_METER
+	weapons.set_loadout(PlayerClasses.stat(id, "weapons"))
+	grenades.max_frags = PlayerClasses.stat(id, "frags")
+	grenades.max_concs = PlayerClasses.stat(id, "concs")
+	grenades.refill()
+
+
+func set_team(t: int) -> void:
+	team = t
+	_update_team_color()
+
+
+func set_alive(value: bool) -> void:
+	alive = value
+	collision.disabled = not value
+	var body := get_node_or_null("Body")
+	if body:
+		body.visible = value
+
+
+## Server only: hurt by someone (or something, if attacker is null), with a
+## knockback push. No friendly fire: teammates can't hurt or push you.
+func hurt(amount: float, attacker: Player, push: Vector3) -> void:
+	if not alive:
+		return
+	if attacker and attacker != self and attacker.team == team:
+		return
+	launch(velocity + push)
+	take_damage(amount, attacker)
+
+
+## Server only. Returns how much health was actually restored.
+func heal(amount: float, healer: Player) -> float:
+	if not alive or health >= max_health:
+		return 0.0
+	var gained := minf(amount, max_health - health)
+	health += gained
+	Game.instance.report_damage(healer, self, -gained)
+	return gained
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -163,6 +221,8 @@ func build_cmd(seq: int) -> PlayerCmd:
 		if Input.is_action_just_pressed("reload"): c.flags |= PlayerCmd.RELOAD
 		if Input.is_action_just_pressed("weapon_1"): c.weapon_slot = 1
 		if Input.is_action_just_pressed("weapon_2"): c.weapon_slot = 2
+		if Input.is_action_just_pressed("weapon_3"): c.weapon_slot = 3
+		if Input.is_action_just_pressed("detonate_pipes"): c.flags |= PlayerCmd.DETONATE
 		c.flags |= _wheel_flags
 	_wheel_flags = 0
 	if auto_hop: c.flags |= PlayerCmd.AUTO_HOP
@@ -207,7 +267,7 @@ func simulate(cmd: PlayerCmd, delta: float) -> void:
 	on_floor = is_on_floor()
 
 	if global_position.y < -50.0 and multiplayer.is_server():
-		respawn()
+		die(null)
 
 
 ## Everything a replay needs to restart from a server-confirmed tick.
@@ -346,26 +406,42 @@ func launch(new_velocity: Vector3) -> void:
 	_launched = true
 
 
-## Server only.
-func take_damage(amount: float) -> void:
+## Server only. Damage that ignores teams (falling out of the world, your
+## own grenade in your hand). Use hurt() for anything a player caused.
+func take_damage(amount: float, attacker: Player = null) -> void:
+	if not alive:
+		return
 	health -= amount
+	if attacker and attacker != self:
+		Game.instance.report_damage(attacker, self, amount)
 	if health <= 0.0:
-		grenades.drop_held()
-		respawn()
+		die(attacker)
 
 
-## Server only: back to a random spawn point with full health and grenades.
+## Server only.
+func die(killer: Player) -> void:
+	grenades.drop_held()
+	Game.instance.on_death(self, killer)
+	if pending_class != -1:
+		apply_class(pending_class)
+		pending_class = -1
+	respawn()
+
+
+## Server only: to a random spawn point of your team, full health and ammo.
 ## The owning client snaps to it on the next snapshot.
 func respawn() -> void:
-	var spawns := get_tree().get_nodes_in_group("spawn_point")
+	var spawns := get_tree().get_nodes_in_group("spawn_team%d" % team)
 	var at: Node3D = spawns.pick_random() if spawns.size() else null
 	global_position = at.global_position if at else Vector3(0, 0.1, 60)
 	rotation.y = at.rotation.y if at else 0.0
+	look_yaw = rotation.y
 	velocity = Vector3.ZERO
 	health = max_health
 	_launched = false
 	grenades.refill()
 	weapons.reset()
+	set_alive(true)
 
 
 func _update_hud() -> void:

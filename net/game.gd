@@ -19,6 +19,7 @@ extends Node
 ##   between snapshots.
 
 const PLAYER_SCENE := preload("res://player/player.tscn")
+const GAME_UI := preload("res://ui/game_ui.gd")
 
 const SNAPSHOT_EVERY := 2        ## Server sends 64 snapshots/s at 128 tick.
 const INTERP_DELAY_TICKS := 16   ## Draw others 125 ms behind the server.
@@ -40,6 +41,12 @@ var _last_queued := {}    ## peer id -> highest seq queued
 var _last_run := {}       ## peer id -> seq of the last command run
 var _next_grenade_id := 1
 var _pos_history := {}    ## server tick -> {peer id: [hull center, half segment]}
+var _pipes := {}          ## peer id -> Array[Bomb] (oldest first)
+var _damage_batch := {}   ## attacker peer -> {victim peer: amount} this tick
+
+## Scoreboard, on every machine: peer id -> {name, kills, deaths}.
+var scores := {}
+var ui: CanvasLayer        ## Menus, scoreboard, kill feed (not on a dedicated server).
 
 # Client side
 var local_player: Player
@@ -60,6 +67,16 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	spawner.spawn_function = _spawn_player
+	if not (multiplayer.is_server() and get_node("/root/Net").dedicated):
+		ui = GAME_UI.new()
+		add_child(ui)
+	if not multiplayer.is_server():
+		# Tell the server our name as soon as we're connected (the map loads
+		# before the connection finishes).
+		if multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+			_send_name.call_deferred()
+		else:
+			multiplayer.connected_to_server.connect(_send_name, CONNECT_ONE_SHOT)
 	if multiplayer.is_server():
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -74,11 +91,23 @@ func _ready() -> void:
 func _on_peer_connected(id: int) -> void:
 	if players_root.has_node(str(id)):
 		return
-	var spawns := get_tree().get_nodes_in_group("spawn_point")
-	var at: Node3D = spawns[players_root.get_child_count() % spawns.size()] if spawns.size() else null
+	var team := _smaller_team()
+	var spawns := get_tree().get_nodes_in_group("spawn_team%d" % team)
+	var at: Node3D = spawns.pick_random() if spawns.size() else null
 	var pos := at.global_position if at else Vector3(0, 0.1, 60)
 	var yaw := at.rotation.y if at else 0.0
-	spawner.spawn([id, pos, yaw])
+	scores[id] = {"name": "Player %d" % (scores.size() + 1), "kills": 0, "deaths": 0}
+	if id == 1:
+		scores[id].name = get_node("/root/Net").player_name
+	spawner.spawn([id, pos, yaw, team])
+	_sync_scores.rpc(scores)
+
+
+func _smaller_team() -> int:
+	var counts := [0, 0]
+	for p: Player in players_root.get_children():
+		counts[p.team] += 1
+	return 0 if counts[0] <= counts[1] else 1
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -88,6 +117,8 @@ func _on_peer_disconnected(id: int) -> void:
 	_cmd_queue.erase(id)
 	_last_queued.erase(id)
 	_last_run.erase(id)
+	scores.erase(id)
+	_sync_scores.rpc(scores)
 
 
 ## Runs on the server and on every client (MultiplayerSpawner replicates it).
@@ -98,6 +129,7 @@ func _spawn_player(data: Array) -> Node:
 	p.position = data[1]
 	p.rotation.y = data[2]
 	p.look_yaw = data[2]
+	p.team = data[3]
 	p.is_local = data[0] == multiplayer.get_unique_id()
 	if p.is_local:
 		local_player = p
@@ -129,6 +161,8 @@ func _server_tick_players(delta: float) -> void:
 		if p.is_local:
 			# Host: no network in the way, just run our input.
 			_seq += 1
+			if not p.alive:
+				continue
 			var cmd := p.build_cmd(_seq)
 			cmd.view_tick = tick   # The host sees everyone live.
 			p.simulate(cmd, delta)
@@ -139,15 +173,18 @@ func _server_tick_players(delta: float) -> void:
 		var n := 0
 		while q.size() and n < MAX_CMDS_PER_TICK:
 			var cmd: PlayerCmd = q.pop_front()
+			_last_run[p.peer_id] = cmd.seq
+			n += 1
+			if not p.alive:
+				continue  # Dead or still picking a class: drop the input.
 			p.simulate(cmd, delta)
 			p.grenades.tick(cmd, delta)
 			p.weapons.tick(cmd, delta)
-			_last_run[p.peer_id] = cmd.seq
-			n += 1
+	_flush_damage_numbers()
 
 
 func _client_predict(delta: float) -> void:
-	if not is_instance_valid(local_player):
+	if not is_instance_valid(local_player) or not local_player.alive:
 		return
 	_seq += 1
 	var cmd := local_player.build_cmd(_seq)
@@ -185,12 +222,14 @@ func _submit_cmds(packed: Array) -> void:
 func _send_snapshots() -> void:
 	var everyone := []
 	for p: Player in players_root.get_children():
-		everyone.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouched])
+		everyone.append([p.peer_id, p.global_position, p.rotation.y, p.head.rotation.x, p.crouched,
+			p.team, p.class_id, p.alive])
 	for id in multiplayer.get_peers():
 		var p := players_root.get_node_or_null(str(id)) as Player
 		if p == null:
 			continue
-		var personal := [_last_run.get(id, 0), p.get_state(), p.health, p.grenades.snapshot(), p.weapons.snapshot()]
+		var personal := [_last_run.get(id, 0), p.get_state(), p.health, p.grenades.snapshot(),
+			p.weapons.snapshot(), p.pending_class]
 		_receive_snapshot.rpc_id(id, tick, everyone, personal)
 
 
@@ -206,6 +245,9 @@ func _apply_snapshot(snap: Array) -> void:
 		_server_tick = server_tick
 	var my_id := multiplayer.get_unique_id()
 	for e in snap[1]:
+		var who := players_root.get_node_or_null(str(e[0])) as Player
+		if who:
+			_apply_identity(who, e[5], e[6], e[7])
 		if e[0] == my_id:
 			continue
 		var buf: Array = _interp.get_or_add(e[0], [])
@@ -221,6 +263,11 @@ func _apply_snapshot(snap: Array) -> void:
 	local_player.health = personal[2]
 	local_player.grenades.apply_snapshot(personal[3])
 	local_player.weapons.apply_snapshot(personal[4])
+	local_player.pending_class = personal[5]
+	if not local_player.alive:
+		_pending.clear()
+		_history.clear()
+		return
 
 	while _pending.size() and _pending[0].seq <= ack:
 		_pending.pop_front()
@@ -241,6 +288,19 @@ func _apply_snapshot(snap: Array) -> void:
 		local_player.simulate(c, delta)
 		_history[c.seq] = local_player.get_state()
 	local_player.apply_look()
+
+
+## Client: team, class and alive state from a snapshot.
+func _apply_identity(p: Player, team: int, class_id: int, alive: bool) -> void:
+	if p.team != team:
+		p.set_team(team)
+	if p.class_id != class_id and class_id != -1:
+		p.apply_class(class_id)
+	if p.alive != alive:
+		p.set_alive(alive)
+		if alive and p == local_player:
+			_pending.clear()   # Fresh life: the next snapshot sets our state.
+			_history.clear()
 
 
 func _states_match(a: Array, b: Array) -> bool:
@@ -313,23 +373,60 @@ func _explosion(grenade_id: int, type: int, origin: Vector3, radius: float) -> v
 		GrenadeThrower.spawn_effect(get_parent(), type as Grenade.Type, origin, radius)
 
 
-# --- Rockets -------------------------------------------------------------------
+# --- Rockets, nails and Demoman bombs -------------------------------------
 
-## Server: fire a real rocket and tell clients to show a look-alike.
-func spawn_rocket(shooter: Player, pos: Vector3, vel: Vector3) -> void:
+## Server: fire a real rocket or nail and tell clients to show a look-alike.
+func spawn_projectile(shooter: Player, kind: int, pos: Vector3, vel: Vector3) -> void:
 	var id := _new_projectile_id()
-	var r := Rocket.create(shooter, vel, id)
+	var r := Rocket.create(shooter, kind, vel, id)
 	r.position = pos
 	get_parent().add_child(r)
-	_show_rocket.rpc(id, pos, vel)
+	_show_projectile.rpc(id, kind, pos, vel)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _show_rocket(id: int, pos: Vector3, vel: Vector3) -> void:
-	var r := Rocket.create(null, vel, id)
+func _show_projectile(id: int, kind: int, pos: Vector3, vel: Vector3) -> void:
+	var r := Rocket.create(null, kind, vel, id)
 	r.position = pos
 	_projectiles[id] = r
 	get_parent().add_child(r)
+
+
+## Server: launch a grenade or pipe bomb.
+func spawn_bomb(shooter: Player, kind: int, pos: Vector3, vel: Vector3) -> void:
+	var id := _new_projectile_id()
+	var b := Bomb.create(shooter, kind, id, true)
+	_add_bomb(b, pos, vel)
+	if kind == WeaponStats.Kind.PIPEBOMB_LAUNCHER:
+		var mine: Array = _pipes.get_or_add(shooter.peer_id, [])
+		mine = mine.filter(func(x): return is_instance_valid(x) and not x.is_queued_for_deletion())
+		mine.append(b)
+		_pipes[shooter.peer_id] = mine
+		if mine.size() > WeaponStats.get_stat(kind, "max_active"):
+			mine.pop_front().explode()   # Too many out: the oldest goes off.
+	_show_bomb.rpc(id, kind, pos, vel, shooter.peer_id)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _show_bomb(id: int, kind: int, pos: Vector3, vel: Vector3, shooter_peer: int) -> void:
+	var shooter := players_root.get_node_or_null(str(shooter_peer)) as Player
+	var b := Bomb.create(shooter, kind, id, false)
+	_projectiles[id] = b
+	_add_bomb(b, pos, vel)
+
+
+func _add_bomb(b: Bomb, pos: Vector3, vel: Vector3) -> void:
+	get_parent().add_child(b)
+	b.global_position = pos
+	b.linear_velocity = vel
+
+
+## Server: Mouse 5. Every pipe this player has out goes off.
+func detonate_pipes(p: Player) -> void:
+	for b in _pipes.get(p.peer_id, []):
+		if is_instance_valid(b):
+			b.explode()
+	_pipes.erase(p.peer_id)
 
 
 # --- Hitscan with lag compensation ---------------------------------------------
@@ -338,7 +435,8 @@ func _show_rocket(id: int, pos: Vector3, vel: Vector3) -> void:
 func _record_positions() -> void:
 	var now := {}
 	for p: Player in players_root.get_children():
-		now[p.peer_id] = [p.center(), p.hull_half_segment()]
+		if p.alive:
+			now[p.peer_id] = [p.center(), p.hull_half_segment()]
 	_pos_history[tick] = now
 	_pos_history.erase(tick - LAG_COMP_TICKS - 1)
 
@@ -357,8 +455,10 @@ func hitscan(shooter: Player, origin: Vector3, dirs: Array[Vector3], max_range: 
 		var best_dist := max_range if wall.is_empty() else origin.distance_to(wall.position)
 		var best: Player = null
 		for p: Player in players_root.get_children():
-			if p == shooter:
-				continue
+			if p == shooter or not p.alive or p.team == shooter.team:
+				continue  # Pellets pass through teammates.
+			if not rewind.has(p.peer_id) and not rewind.is_empty():
+				continue  # Wasn't alive at that moment.
 			var hull: Array = rewind.get(p.peer_id, [p.center(), p.hull_half_segment()])
 			var a: Vector3 = hull[0] - Vector3.UP * hull[1]
 			var b: Vector3 = hull[0] + Vector3.UP * hull[1]
@@ -371,8 +471,7 @@ func hitscan(shooter: Player, origin: Vector3, dirs: Array[Vector3], max_range: 
 			damage[best] = damage.get(best, 0.0) + damage_each
 	for p: Player in damage:
 		var dir := (p.center() - origin).normalized()
-		p.launch(p.velocity + dir * damage[p] * knockback)
-		p.take_damage(damage[p])
+		p.hurt(damage[p], shooter, dir * damage[p] * knockback)
 	_tracers.rpc(origin, ends)
 
 
@@ -396,3 +495,176 @@ func _tracers(origin: Vector3, ends: Array) -> void:
 	var tw := lines.create_tween()
 	tw.tween_property(m, "albedo_color:a", 0.0, 0.12)
 	tw.tween_callback(lines.queue_free)
+
+
+# --- Medkit ----------------------------------------------------------------------
+
+## Server: the Medic's medkit. Heals the teammate you're touching, or hits an
+## enemy. Checked against where the Medic saw players, like the shotgun.
+func medkit(medic: Player, origin: Vector3, aim: Vector3, reach: float, heal_amount: float,
+		damage: float, view_tick: int) -> void:
+	var space := medic.get_world_3d().direct_space_state
+	var wall := space.intersect_ray(PhysicsRayQueryParameters3D.create(origin, origin + aim * reach, 1))
+	var best_dist := reach if wall.is_empty() else origin.distance_to(wall.position)
+	var rewind: Dictionary = _pos_history.get(clampi(view_tick, tick - LAG_COMP_TICKS, tick), {})
+	var best: Player = null
+	for p: Player in players_root.get_children():
+		if p == medic or not p.alive or not rewind.has(p.peer_id):
+			continue
+		var hull: Array = rewind[p.peer_id]
+		var pts := Geometry3D.get_closest_points_between_segments(origin, origin + aim * best_dist,
+			hull[0] - Vector3.UP * hull[1], hull[0] + Vector3.UP * hull[1])
+		# A little more forgiving than bullets: it's a melee swing.
+		if pts[0].distance_to(pts[1]) <= Player.HULL_RADIUS + 0.3:
+			best_dist = origin.distance_to(pts[0])
+			best = p
+	if best == null:
+		return
+	if best.team == medic.team:
+		best.heal(heal_amount, medic)
+	else:
+		best.hurt(damage, medic, aim * 2.0)
+
+
+# --- Teams, classes, scores ------------------------------------------------------
+
+## Local player asks to change team (-1 = auto). Works on host and clients.
+func request_team(t: int) -> void:
+	if multiplayer.is_server():
+		_do_team(1, t)
+	else:
+		_request_team.rpc_id(1, t)
+
+
+func request_class(c: int) -> void:
+	if multiplayer.is_server():
+		_do_class(1, c)
+	else:
+		_request_class.rpc_id(1, c)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_team(t: int) -> void:
+	_do_team(multiplayer.get_remote_sender_id(), t)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_class(c: int) -> void:
+	_do_class(multiplayer.get_remote_sender_id(), c)
+
+
+## Server. Switching team respawns you on the new side straight away (no
+## death counted). Before you've picked a class you stay in the menu.
+func _do_team(peer: int, t: int) -> void:
+	var p := players_root.get_node_or_null(str(peer)) as Player
+	if p == null:
+		return
+	if t != 0 and t != 1:
+		t = _smaller_team() if p.team != _smaller_team() or not p.alive else p.team
+	if t == p.team:
+		return
+	p.grenades.drop_held()
+	p.set_team(t)
+	if p.alive:
+		p.respawn()
+
+
+## Server. Your first class spawns you right away; after that, a new class
+## takes effect the next time you respawn (TFC rules).
+func _do_class(peer: int, c: int) -> void:
+	var p := players_root.get_node_or_null(str(peer)) as Player
+	if p == null or not PlayerClasses.DATA.has(c):
+		return
+	if not p.alive:
+		p.apply_class(c)
+		p.pending_class = -1
+		p.respawn()
+	elif c == p.class_id:
+		p.pending_class = -1
+	else:
+		p.pending_class = c
+
+
+func _send_name() -> void:
+	_set_name.rpc_id(1, get_node("/root/Net").player_name)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _set_name(n: String) -> void:
+	var peer := multiplayer.get_remote_sender_id()
+	n = n.strip_edges().substr(0, 24)
+	if n.is_empty() or not scores.has(peer):
+		return
+	scores[peer].name = n
+	_sync_scores.rpc(scores)
+
+
+## Server: someone died. Count it and tell everyone.
+func on_death(victim: Player, killer: Player) -> void:
+	if scores.has(victim.peer_id):
+		scores[victim.peer_id].deaths += 1
+	if killer and killer != victim and scores.has(killer.peer_id):
+		scores[killer.peer_id].kills += 1
+	_sync_scores.rpc(scores)
+	var kname: String = scores[killer.peer_id].name if killer and scores.has(killer.peer_id) else ""
+	var vname: String = scores[victim.peer_id].name if scores.has(victim.peer_id) else "?"
+	_kill_feed.rpc(kname if killer != victim else "", vname,
+		killer.team if killer else -1, victim.team)
+
+
+@rpc("authority", "call_local", "reliable")
+func _sync_scores(s: Dictionary) -> void:
+	scores = s
+
+
+@rpc("authority", "call_local", "reliable")
+func _kill_feed(killer_name: String, victim_name: String, killer_team: int, victim_team: int) -> void:
+	if ui:
+		ui.add_kill(killer_name, victim_name, killer_team, victim_team)
+
+
+# --- Damage numbers ---------------------------------------------------------------
+
+## Server: remember damage (positive) or healing (negative) for the attacker's
+## floating numbers. Sent once per tick, so a shotgun blast shows one total.
+func report_damage(attacker: Player, victim: Player, amount: float) -> void:
+	if attacker == null or attacker == victim or not attacker.is_inside_tree():
+		return
+	var per: Dictionary = _damage_batch.get_or_add(attacker.peer_id, {})
+	per[victim.peer_id] = per.get(victim.peer_id, 0.0) + amount
+
+
+func _flush_damage_numbers() -> void:
+	for attacker_peer in _damage_batch:
+		var list := []
+		for victim_peer in _damage_batch[attacker_peer]:
+			list.append([victim_peer, roundi(_damage_batch[attacker_peer][victim_peer])])
+		if attacker_peer == multiplayer.get_unique_id():
+			_show_damage_numbers(list)
+		elif attacker_peer in multiplayer.get_peers():
+			_show_damage_numbers.rpc_id(attacker_peer, list)
+	_damage_batch.clear()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _show_damage_numbers(list: Array) -> void:
+	for e in list:
+		var victim := players_root.get_node_or_null(str(e[0])) as Player
+		if victim == null or e[1] == 0:
+			continue
+		var label := Label3D.new()
+		var healing: bool = e[1] < 0
+		label.text = ("+%d" % -e[1]) if healing else ("-%d" % e[1])
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.no_depth_test = true
+		label.fixed_size = true
+		label.pixel_size = 0.0012
+		label.font_size = 40
+		label.outline_size = 12
+		label.modulate = Color(0.4, 1.0, 0.45) if healing else Color(1.0, 0.85, 0.2)
+		get_parent().add_child(label)
+		label.global_position = victim.global_position + Vector3(randf_range(-0.3, 0.3), 2.2, randf_range(-0.3, 0.3))
+		var tw := label.create_tween().set_parallel()
+		tw.tween_property(label, "global_position:y", label.global_position.y + 0.8, 1.0)
+		tw.tween_property(label, "modulate:a", 0.0, 1.0).set_delay(0.4)
+		tw.chain().tween_callback(label.queue_free)

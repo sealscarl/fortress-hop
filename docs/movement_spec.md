@@ -101,8 +101,8 @@ Verified in headless simulation:
 | Handheld frag, jumping forward at 320 ups | 1084 horizontal, 915 up |
 | Handheld frag, running on the ground | 1320 horizontal, 0 up |
 
-A green **resupply pad** right of spawn refills health and grenades. Dying also refills them.
+Each team's base has a green **resupply pad** that refills health, grenades and ammo. Dying also refills them.
 
 ## Controls
 
-E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 primes a frag · Q primes a conc · either key throws what you're holding · Mouse 1 fire · R reload · 1/2 or mouse wheel switch weapons (see docs/weapons.md) · Esc frees the mouse, click to recapture.
+E/D/S/F move · Space jump · Mouse 4 crouch · Mouse 2 primes a frag · Q primes a conc · either key throws what you're holding · Mouse 1 fire · R reload · 1/2/3 or mouse wheel switch weapons · Mouse 5 detonate pipes · F1 class · F2 team · Tab scoreboard (see docs/weapons.md, docs/classes.md) · Esc frees the mouse, click to recapture.
