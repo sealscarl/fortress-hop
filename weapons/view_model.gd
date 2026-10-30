@@ -20,10 +20,12 @@ const DROP_TIME := 0.12         ## Seconds to drop out of view / come back.
 
 const MODELS := {
 	K.ROCKET_LAUNCHER: preload("res://weapons/models/rocket_launcher.glb"),
+	K.SHOTGUN: preload("res://weapons/models/shotgun.glb"),
 }
 ## Where each weapon sits: [position, rotation in degrees], centered.
 const PLACE_MODEL := {
 	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.27, -0.24), Vector3(-2, 0, 0)],
+	K.SHOTGUN: [Vector3(0.0, -0.285, -0.17), Vector3(-2, 0, 0)],
 }
 const PLACE_PLACEHOLDER := [Vector3(0.0, -0.32, -0.55), Vector3.ZERO]
 
@@ -145,7 +147,9 @@ func fired(kind: int) -> void:
 		_anim.play("fire")
 		_anim.queue("idle")
 		if kind == K.ROCKET_LAUNCHER:
-			_rocket_flash()
+			_flash([[Vector3(0, 0, -0.44), Color(1.0, 0.75, 0.35), 0.06, 4.0], [Vector3(0, 0, 0.42), Color(1.0, 0.55, 0.2), 0.1, 2.0]])
+		elif kind == K.SHOTGUN:
+			_flash([[Vector3(0, 0.03, -0.41), Color(1.0, 0.8, 0.4), 0.05, 3.0]])
 	else:
 		_kick = 1.0 if kind != K.NAILGUN and kind != K.SUPER_NAILGUN else 0.3
 
@@ -168,11 +172,11 @@ func _place(delta: float) -> void:
 	_holder.rotation_degrees = rot
 
 
-## Muzzle flash, backblast and a smoke puff (drawn with the weapon).
-func _rocket_flash() -> void:
-	var muzzle := _model.global_transform * Vector3(0, 0, -0.44)
-	var rear := _model.global_transform * Vector3(0, 0, 0.42)
-	for spot in [[muzzle, Color(1.0, 0.75, 0.35), 0.06, 4.0], [rear, Color(1.0, 0.55, 0.2), 0.1, 2.0]]:
+## Muzzle flash (and the launcher's backblast), drawn with the weapon.
+## spots: [[position on the model, color, size, light energy], ...]
+func _flash(spots: Array) -> void:
+	for spot in spots:
+		spot[0] = _model.global_transform * (spot[0] as Vector3)
 		var light := OmniLight3D.new()
 		light.light_color = spot[1]
 		light.light_energy = spot[3]

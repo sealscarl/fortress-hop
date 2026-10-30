@@ -16,7 +16,6 @@ const MODELS := {
 	"default": preload("res://player/models/soldier.glb"),
 }
 const SHADER := preload("res://player/team_swap.gdshader")
-const ROCKET_LAUNCHER := preload("res://weapons/models/rocket_launcher.glb")
 const K := WeaponStats.Kind
 
 var player: Player
@@ -138,8 +137,8 @@ func _update_weapon() -> void:
 		if _weapon:
 			_weapon.queue_free()
 			_weapon = null
-		if kind == K.ROCKET_LAUNCHER:
-			_weapon = ROCKET_LAUNCHER.instantiate()
+		if ViewModel.MODELS.has(kind):
+			_weapon = (ViewModel.MODELS[kind] as PackedScene).instantiate()
 		elif kind != -1:
 			var v: Array = WeaponStats.get_stat(kind, "view")
 			var mi := MeshInstance3D.new()

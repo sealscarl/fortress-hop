@@ -102,7 +102,11 @@ The view model is a simple tube (rocket launcher) or barrel (shotgun) that dips 
 - **Reloading:** the weapon drops out of view (0.12 s slide) for the whole reload while the reload sound plays for each round; it comes back up when the reload finishes or you fire. Same while switching weapons.
 - Drawn by a second camera on render layer 20, overlaid on the world: the weapon never pokes through walls, and it always uses fov 90 (73.74° vertical) whatever your FOV setting, so it doesn't stretch at fov 120. Same 3D world, so map lights light it.
 - Weapons with a model play its `draw`, `idle` and `fire` animations. Placement per weapon in `PLACE_MODEL`.
-- Models so far: **rocket launcher** (`weapons/models/rocket_launcher.glb`, generated in Meshy, prepared with `tools/models/prepare_weapon.py`). Other weapons still use placeholder cylinders.
+- Models so far (generated in Meshy, prepared with `tools/models/prepare_weapon.py`):
+  - **rocket launcher** (`weapons/models/rocket_launcher.glb`)
+  - **shotgun** (`weapons/models/shotgun.glb`: `--muzzle -x --length 0.8 --tris 15000 --kick 1.3`)
+
+  Other weapons still use placeholder cylinders. Each weapon with a model gets a muzzle flash in `fired()`; the third-person model holds the same model when it's the class's main weapon.
 
 ### Adding a model
 
