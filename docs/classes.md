@@ -70,7 +70,7 @@ python tools/models/prepare_player.py --src red_soldier_rigged.glb --out player/
 - **Aim and strafe:** `player/aim_modifier.gd` bends the spine up and down to
   where the player looks, and turns the legs toward a sideways run while the
   chest keeps facing forward.
-- **Weapon:** the class's main weapon in the right hand (the rocket launcher
+- **Weapon:** held in both hands in front of the chest, pointing where the player aims. Both arms are bent each frame (two-bone IK in `aim_modifier.gd`) so the hands stay on their spots on the weapon (`HANDS` in `player_model.gd`) in every pose. It's the class's main weapon (the rocket launcher
   model, or a placeholder for weapons without a model yet).
 - In Godot the bones are named `mixamorig_Hips` etc. (the `:` becomes `_`).
 

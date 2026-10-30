@@ -30,7 +30,6 @@ var _anim: AnimationPlayer
 var _skel: Skeleton3D
 var _aim: AimModifier
 var _mats: Array[ShaderMaterial] = []
-var _hand: BoneAttachment3D
 var _weapon: Node3D
 var _weapon_kind := -2
 var _team := -1
@@ -76,9 +75,6 @@ func _build(key: String) -> void:
 	_skel = _model.find_children("*", "Skeleton3D", true, false)[0]
 	_aim = AimModifier.new()
 	_skel.add_child(_aim)
-	_hand = BoneAttachment3D.new()
-	_hand.bone_name = "mixamorig_RightHand"
-	_skel.add_child(_hand)
 	for mi: MeshInstance3D in _model.find_children("*", "MeshInstance3D", true, false):
 		for i in mi.mesh.get_surface_count():
 			var std := mi.mesh.surface_get_material(i) as StandardMaterial3D
@@ -160,7 +156,17 @@ func _on_ground() -> bool:
 	return not player.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
-## The class's main weapon in the right hand, pointing where the player aims.
+## Where the hands hold each weapon, in the weapon's own space (-Z = toward
+## the muzzle): [right hand, left hand]. Placeholders get them from their size.
+const HANDS := {
+	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.08, 0.06), Vector3(0.0, -0.08, -0.16)],
+	K.SHOTGUN: [Vector3(0.0, -0.06, 0.12), Vector3(0.0, -0.03, -0.14)],
+}
+
+
+## The class's main weapon, held in both hands, pointing where the player
+## aims. AimModifier places it each frame (after the spine has bent to the
+## aim) and moves the hands onto it.
 func _update_weapon() -> void:
 	var kinds: Array = PlayerClasses.stat(player.class_id, "weapons") if player.class_id != -1 else []
 	var kind: int = kinds[0] if kinds.size() else -1
@@ -169,8 +175,10 @@ func _update_weapon() -> void:
 		if _weapon:
 			_weapon.queue_free()
 			_weapon = null
+		var hands := [Vector3(0.0, -0.04, 0.1), Vector3(0.0, -0.04, -0.14)]
 		if ViewModel.MODELS.has(kind):
 			_weapon = (ViewModel.MODELS[kind] as PackedScene).instantiate()
+			hands = HANDS.get(kind, hands)
 		elif kind != -1:
 			var v: Array = WeaponStats.get_stat(kind, "view")
 			var mi := MeshInstance3D.new()
@@ -185,8 +193,12 @@ func _update_weapon() -> void:
 			mi.material_override = m
 			_weapon = Node3D.new()
 			_weapon.add_child(mi)
+			var r := float(v[1])
+			var half := float(v[2]) * 0.5
+			hands = [Vector3(0.0, -r, minf(0.1, half - 0.02)), Vector3(0.0, -r, -minf(0.14, half - 0.02))]
 		if _weapon:
 			add_child(_weapon)
-	if _weapon:
-		var aim := Basis.from_euler(Vector3(player.head.rotation.x, player.rotation.y, 0.0))
-		_weapon.global_transform = Transform3D(aim, _hand.global_position + aim * Vector3(-0.04, 0.03, -0.08))
+		_aim.weapon = _weapon
+		_aim.grip = hands[0]
+		_aim.support = hands[1]
+	_aim.aim_basis = Basis.from_euler(Vector3(player.head.rotation.x, player.rotation.y, 0.0))
