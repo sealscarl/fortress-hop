@@ -11,6 +11,7 @@ extends Node
 
 const TICK_SOUND := preload("res://sounds/grenade_tick.wav")
 const TICK_FINAL_SOUND := preload("res://sounds/grenade_tick_final.wav")
+const PIN_SOUND := preload("res://sounds/pin_pull.wav")
 const FRAG_SOUND := preload("res://sounds/explode_frag.wav")
 const CONC_SOUND := preload("res://sounds/explode_conc.wav")
 
@@ -172,7 +173,9 @@ func _play_ticks() -> void:
 		_last_timer_seen = 0.0
 		return
 	if timer_left > _last_timer_seen + 0.5:
-		_last_tick_step = -1  # A new grenade was primed.
+		_last_tick_step = -1  # A new grenade was primed: pin-pull click.
+		_beep.stream = PIN_SOUND
+		_beep.play()
 	_last_timer_seen = timer_left
 	if timer_left > fuse_time:
 		_last_tick_step = 0   # Still in the prime delay: no beeps yet.

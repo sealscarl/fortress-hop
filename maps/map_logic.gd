@@ -176,6 +176,9 @@ func _build_flags_and_captures(ents: Array[Node]) -> void:
 				"home": n.position - Vector3(0, 24.0 / U, 0),
 				"return_time": str(p.get("pausetime", "30")).to_float(),
 				"state": FlagState.HOME, "carrier": null, "pos": Vector3.ZERO, "return_left": 0.0,
+				# A thrown or dropped flag flies (vel) until it lands. The
+				# thrower can't grab it back for a moment (teammates can).
+				"vel": Vector3.ZERO, "moving": false, "lock_peer": 0, "lock_left": 0.0,
 				"msg_taken": text(p.get("message", "")),
 			}
 			f.pos = f.home
@@ -368,6 +371,7 @@ func _physics_process(delta: float) -> void:
 		# Flags.
 		for f in flags:
 			if f.state != FlagState.CARRIED and p.team == f.takers \
+					and not (f.lock_left > 0.0 and f.lock_peer == p.peer_id) \
 					and pbox.intersects(AABB(f.pos - Vector3(0.6, 0, 0.6), Vector3(1.2, 1.8, 1.2))):
 				_take_flag(f, p)
 				changed = true
@@ -392,8 +396,11 @@ func _physics_process(delta: float) -> void:
 		if f.state == FlagState.CARRIED and is_instance_valid(f.carrier):
 			f.pos = f.carrier.global_position
 		elif f.state == FlagState.DROPPED:
+			f.lock_left = maxf(f.lock_left - delta, 0.0)
+			if f.moving and _move_flag(f, delta):
+				changed = true   # Landed: tell everyone where.
 			f.return_left -= delta
-			if f.return_left <= 0.0:
+			if f.return_left <= 0.0 or f.pos.y < -40.0:
 				_return_flag(f, "%s returned." % f.name)
 				changed = true
 	for s in securities:
@@ -445,20 +452,63 @@ func _return_flag(f: Dictionary, msg: String, sound := true) -> void:
 	f.state = FlagState.HOME
 	f.carrier = null
 	f.pos = f.home
+	f.moving = false
+	f.vel = Vector3.ZERO
 	if msg:
 		send_all("_announce", [msg, -1, "return" if sound else ""])
 
 
-func _drop_flag(f: Dictionary, at: Vector3) -> void:
+func _drop_flag(f: Dictionary, at: Vector3, vel := Vector3.ZERO, msg := "") -> void:
 	f.state = FlagState.DROPPED
 	f.carrier = null
 	f.pos = at
+	f.vel = vel
+	f.moving = true   # Falls to the floor (or flies, if thrown).
 	f.return_left = f.return_time
 	if at.y < -40.0:
 		_return_flag(f, "%s returned." % f.name)
 	else:
-		send_all("_announce", ["The %s was dropped!" % f.name, -1, "drop"])
+		send_all("_announce", [msg if msg else "The %s was dropped!" % f.name, -1, "drop"])
 	send_all("_state", [_state_array()], false)
+
+
+## Server: the carrier pressed Throw flag (A).
+func throw_flag(p: Player) -> void:
+	for f in flags:
+		if f.carrier == p and f.state == FlagState.CARRIED:
+			var aim := -p.camera.global_basis.z
+			var vel := aim * Console.sv("tf_flagthrow_speed") / U + Vector3.UP * Console.sv("tf_flagthrow_up") / U
+			f.lock_peer = p.peer_id
+			f.lock_left = 1.0
+			_drop_flag(f, p.global_position + Vector3.UP * 0.6, vel, "%s threw the %s!" % [_name(p), f.name])
+			return
+
+
+## Moves a flying flag one tick: gravity, stops against walls, lands on
+## floors. Same code on the server and on clients (for a smooth arc).
+## Returns true when it lands.
+func _move_flag(f: Dictionary, delta: float) -> bool:
+	var space := get_world_3d().direct_space_state
+	f.vel.y -= Console.sv("sv_gravity") / U * delta
+	var motion: Vector3 = f.vel * delta
+	# Walls and ceilings, checked a little above the flag's base.
+	var lift := Vector3.UP * 0.3
+	var q := PhysicsRayQueryParameters3D.create(f.pos + lift, f.pos + lift + motion, 1)
+	var hit := space.intersect_ray(q)
+	if hit and hit.normal.y < 0.7:
+		var n: Vector3 = hit.normal
+		f.vel -= n * minf(f.vel.dot(n), 0.0)   # Lose the speed into the wall.
+		motion = f.vel * delta
+	# The floor, at the flag's base.
+	q = PhysicsRayQueryParameters3D.create(f.pos + Vector3.UP * 0.05, f.pos + motion, 1)
+	hit = space.intersect_ray(q)
+	if hit and hit.normal.y >= 0.7 and f.vel.y <= 0.0:
+		f.pos = hit.position
+		f.vel = Vector3.ZERO
+		f.moving = false
+		return true
+	f.pos += motion
+	return false
 
 
 ## Called by Player.die() before respawning, and when a player leaves or
@@ -581,7 +631,8 @@ func send_all(method: StringName, args: Array, local := true) -> void:
 func _state_array() -> Array:
 	var fl := []
 	for f in flags:
-		fl.append([f.state, f.carrier.peer_id if is_instance_valid(f.carrier) else 0, f.pos, f.return_left])
+		fl.append([f.state, f.carrier.peer_id if is_instance_valid(f.carrier) else 0, f.pos, f.return_left,
+			f.vel, f.moving])
 	var sec := []
 	for s in securities:
 		sec.append(s.offline_left)
@@ -607,6 +658,9 @@ func _state(s: Array) -> void:
 		flags[i].carrier = Game.instance.players_root.get_node_or_null(str(e[1])) if e[1] else null
 		flags[i].pos = e[2]
 		flags[i].return_left = e[3]
+		if e.size() >= 6:
+			flags[i].vel = e[4]
+			flags[i].moving = e[5]
 	for i in mini(securities.size(), s[2].size()):
 		securities[i].offline_left = s[2][i]
 		_set_lasers(securities[i].group, s[2][i] <= 0.0)
@@ -620,6 +674,8 @@ func _client_tick(delta: float) -> void:
 	for f in flags:
 		if f.state == FlagState.DROPPED:
 			f.return_left = maxf(f.return_left - delta, 0.0)
+			if f.moving:
+				_move_flag(f, delta)
 		elif f.state == FlagState.CARRIED and is_instance_valid(f.carrier):
 			f.pos = f.carrier.global_position
 	for s in securities:

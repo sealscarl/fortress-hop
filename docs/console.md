@@ -32,6 +32,7 @@ In Quake units, like QW. **Only the host can change them.** They're sent to ever
 | `tf_gren_fuse` | 3 | Countdown after that, seconds (total = both) |
 | `tf_rocket_selfdamage` | 0.72 | Share of your own rocket's damage you take (4 rocket jumps, the 5th kills) |
 | `tf_rocket_selfpush` | 0.8 | Share of your own rocket's push you get (rocket jump strength) |
+| `tf_flagthrow_speed` / `tf_flagthrow_up` | 400 / 200 | Flag throw speed along your aim / extra upward speed |
 
 Class run speeds stay per class (`player/classes.gd`).
 

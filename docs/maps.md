@@ -53,6 +53,7 @@ TF teams: `team_no 1` = Blue, `2` = Red (ours: Red = 0, Blue = 1). Goal boxes us
 | --- | --- |
 | `info_player_teamspawn` (`team_no`, `angle`) | Team spawn points |
 | `item_tfgoal` with `owned_by` | A **flag**: `team_no` may take it, returns home after `pausetime` s when dropped, `message` shown to the taker |
+
 | `info_tfgoal` with `items_allowed` | A **capture point** for the flag with that `goal_no`; `increase_team1/2` points; `target` = refill on capture |
 | `func_button` → `targetname` goal with `remove_group_no` + `activate_goal_no` → goal with `delay_time`, `restore_group_no`, `netname` | A **security system**: the button (pressable by its `team_no`) takes the laser group offline for `delay_time` s; HUD shows "NETNAME: online / OFFLINE n" |
 | `info_tfgoal` with a `*laser*` model, `group_no`, kill effect | **Security lasers**: kill the `team_no` team while online |
@@ -62,6 +63,10 @@ TF teams: `team_no 1` = Blue, `2` = Red (ours: Red = 0, Blue = 1). Goal boxes us
 | `light` | A light (`light` value = range in units, `_color`) |
 
 Not yet: doors (`func_door`), trains, teleporters, `trigger_push`, ladders, swimming, TF's more exotic goal effects. They'll be added as maps need them.
+
+## Throwing the flag
+
+Carrying a flag, press **A** (Throw flag; rebindable, console `throwflag`) to toss it along your aim: 400 ups forward plus 200 ups up (`tf_flagthrow_speed`, `tf_flagthrow_up`), about 7 m on flat ground. It stops against walls and lands on the floor, then waits like a dropped flag (back home after `pausetime`). You can't grab your own throw for 1 s; teammates can catch it, so you can pass. A flag dropped on death now falls to the floor instead of floating.
 
 ## Rules on Phantom (verified headless)
 

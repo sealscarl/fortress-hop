@@ -14,6 +14,7 @@ const RELOAD := 64       ## Reload key went down this tick.
 const NEXT_WEAPON := 128
 const PREV_WEAPON := 256
 const DETONATE := 512    ## Detonate pipe bombs.
+const THROW_FLAG := 1024 ## Throw the flag you carry (key went down this tick).
 
 var seq := 0
 var move := Vector2.ZERO   ## x = strafe (right +), y = forward/back (back +).

@@ -216,6 +216,7 @@ func _server_tick_players(delta: float) -> void:
 			p.simulate(cmd, delta)
 			p.grenades.tick(cmd, delta)
 			p.weapons.tick(cmd, delta)
+			_flag_input(p, cmd)
 			continue
 		var q: Array = _cmd_queue.get(p.peer_id, [])
 		var n := 0
@@ -228,7 +229,13 @@ func _server_tick_players(delta: float) -> void:
 			p.simulate(cmd, delta)
 			p.grenades.tick(cmd, delta)
 			p.weapons.tick(cmd, delta)
+			_flag_input(p, cmd)
 	_flush_damage_numbers()
+
+
+func _flag_input(p: Player, cmd: PlayerCmd) -> void:
+	if cmd.has(PlayerCmd.THROW_FLAG) and MapLogic.instance:
+		MapLogic.instance.throw_flag(p)
 
 
 func _client_predict(delta: float) -> void:

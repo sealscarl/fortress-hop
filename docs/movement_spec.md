@@ -94,7 +94,7 @@ Spawn faces north (−Z) down a long open runway. Grid lines every 1 m, orange e
 
 ## Grenades
 
-**Double-tap:** press once to prime, press either grenade key to throw it. After priming there's a **1 s buffer** (HUD holds at 3.0, no beeps), then the 3 s countdown and beeps start: **4 s from prime to explosion**, whether held or thrown. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
+**Double-tap:** press once to prime, press either grenade key to throw it. After priming you hear a pin-pull click, then there's a **1 s buffer** (HUD holds at 3.0, no beeps), then the 3 s countdown and beeps start: **4 s from prime to explosion**, whether held or thrown. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
 
 Beeps: one per second, then four fast beeps in the final second. The HUD timer flashes red in the last second while the grenade is still in your hand.
 

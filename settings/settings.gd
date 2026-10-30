@@ -45,6 +45,7 @@ const ACTIONS := [
 	["weapon_3", "Weapon 3"],
 	["weapon_next", "Next weapon"],
 	["weapon_prev", "Previous weapon"],
+	["throw_flag", "Throw flag"],
 	["", "Menus"],
 	["scoreboard", "Scoreboard"],
 	["change_class", "Change class"],

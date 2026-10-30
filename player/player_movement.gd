@@ -246,6 +246,7 @@ func build_cmd(seq: int) -> PlayerCmd:
 		if Input.is_action_just_pressed("weapon_2"): c.weapon_slot = 2
 		if Input.is_action_just_pressed("weapon_3"): c.weapon_slot = 3
 		if Input.is_action_just_pressed("detonate_pipes"): c.flags |= PlayerCmd.DETONATE
+		if Input.is_action_just_pressed("throw_flag"): c.flags |= PlayerCmd.THROW_FLAG
 		c.flags |= _wheel_flags
 	_wheel_flags = 0
 	if auto_hop: c.flags |= PlayerCmd.AUTO_HOP

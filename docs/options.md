@@ -17,7 +17,7 @@ Main menu → **Options**, or in game press **Esc** → **Options**. Changes app
 | Game | Show speedometer | on | |
 | Controls | Every action | See below | Click a binding, press a key or mouse button. Esc cancels. If the key was already in use, the two actions swap. **Default keys** resets the bindings. |
 
-Default keys: E/D/S/F move, Space jump, Mouse 4 crouch, Mouse 1 fire, Mouse 2 frag, Q conc, R reload, Mouse 5 detonate pipes, 1/2/3 weapons, wheel down/up next/previous weapon, Tab scoreboard, F1 class, F2 team. Esc is reserved for menus.
+Default keys: E/D/S/F move, Space jump, Mouse 4 crouch, Mouse 1 fire, Mouse 2 frag, Q conc, R reload, Mouse 5 detonate pipes, A throw flag, 1/2/3 weapons, wheel down/up next/previous weapon, Tab scoreboard, F1 class, F2 team. Esc is reserved for menus.
 
 Only bindings you change are saved, so later changes to the defaults still reach you.
 
