@@ -28,7 +28,8 @@ In Quake units, like QW. **Only the host can change them.** They're sent to ever
 | `tf_hhconc_hpower` / `tf_hhconc_vpower` | 2.74 / 4.1 | Handheld conc multipliers |
 | `tf_hhconc_minup` | 320 | Handheld conc minimum upward speed |
 | `tf_hhfrag_push` | 1000 | Handheld frag push |
-| `tf_gren_fuse` | 3 | Grenade fuse, seconds |
+| `tf_gren_primedelay` | 1 | Seconds after priming before the countdown starts |
+| `tf_gren_fuse` | 3 | Countdown after that, seconds (total = both) |
 | `tf_rocket_selfdamage` | 0.72 | Share of your own rocket's damage you take (4 rocket jumps, the 5th kills) |
 | `tf_rocket_selfpush` | 0.8 | Share of your own rocket's push you get (rocket jump strength) |
 

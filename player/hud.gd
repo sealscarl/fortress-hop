@@ -39,7 +39,7 @@ func _process(_delta: float) -> void:
 		elif g.timer_left < 1.0 and fmod(g.timer_left, 0.25) > 0.125:
 			color = Color(1, 0.2, 0.2)
 		timer_label.modulate = color
-		timer_label.text = "%s %.1f" % ["FRAG" if is_frag else "CONC", maxf(g.timer_left, 0.0)]
+		timer_label.text = "%s %.1f" % ["FRAG" if is_frag else "CONC", clampf(g.timer_left, 0.0, g.fuse_time)]   # Holds at 3.0 during the prime delay.
 
 	if player.class_id == -1:
 		status_label.text = "F2 team  ·  F1 class"

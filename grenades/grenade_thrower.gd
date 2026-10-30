@@ -15,9 +15,12 @@ const FRAG_SOUND := preload("res://sounds/explode_frag.wav")
 const CONC_SOUND := preload("res://sounds/explode_conc.wav")
 
 @export_group("Priming and throwing")
-## Seconds from priming to explosion. Hold past this and it goes off in your hand.
-## TFC conc fuse: 3.81 s.
+## The countdown shown on the HUD, after the prime delay. Hold past it and
+## the grenade goes off in your hand. TFC conc fuse: 3.81 s.
 @export var fuse_time := 3.0
+## Buffer between priming and the start of the countdown. Total time from
+## prime to explosion = prime_delay + fuse_time (1 + 3 = 4 s).
+@export var prime_delay := 1.0
 @export var max_frags := 4
 @export var max_concs := 4
 ## TFC/Momentum: 660 ups.
@@ -147,7 +150,7 @@ func _prime(type: Grenade.Type) -> void:
 		concs -= 1
 	held_type = type
 	timer_type = type
-	timer_left = fuse_time
+	timer_left = prime_delay + fuse_time
 	changed.emit()
 
 
@@ -171,6 +174,9 @@ func _play_ticks() -> void:
 	if timer_left > _last_timer_seen + 0.5:
 		_last_tick_step = -1  # A new grenade was primed.
 	_last_timer_seen = timer_left
+	if timer_left > fuse_time:
+		_last_tick_step = 0   # Still in the prime delay: no beeps yet.
+		return
 	var step: int
 	if timer_left > 1.0:
 		step = int(ceil(timer_left))           # 3, 2 -> one beep per second

@@ -94,13 +94,14 @@ Spawn faces north (−Z) down a long open runway. Grid lines every 1 m, orange e
 
 ## Grenades
 
-**Double-tap:** press once to prime (fuse starts, beeps begin), press either grenade key to throw it. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
+**Double-tap:** press once to prime, press either grenade key to throw it. After priming there's a **1 s buffer** (HUD holds at 3.0, no beeps), then the 3 s countdown and beeps start: **4 s from prime to explosion**, whether held or thrown. Hold past the fuse and it goes off in your hand. Only one grenade can be primed at a time. The beeps and the HUD timer (left of the crosshair) keep running after you throw, so you can time drop concs.
 
 Beeps: one per second, then four fast beeps in the final second. The HUD timer flashes red in the last second while the grenade is still in your hand.
 
 | Setting | Value | Source |
 | --- | --- | --- |
-| `fuse_time` | 3.0 s | Our choice (TFC conc: 3.81 s) |
+| `prime_delay` | 1.0 s | Buffer before the countdown (`tf_gren_primedelay`) |
+| `fuse_time` | 3.0 s | Countdown after the buffer (`tf_gren_fuse`). Total 4 s (TFC conc: 3.81 s) |
 | `throw_speed` | 20.625 m/s | TFC/Momentum 660 ups |
 | `throw_pitch_up_deg` | 18.5° | TFC/Momentum |
 | `inherit_velocity` | 0 | TFC (thrown grenades don't carry your speed) |
