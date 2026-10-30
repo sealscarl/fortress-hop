@@ -12,3 +12,6 @@ sounds/*.wav !filter !diff !merge binary
 # Third-party add-ons are stored as-is in regular Git.
 addons/**/*.png !filter !diff !merge binary
 weapons/models/*.glb !filter !diff !merge binary
+player/models/*.glb !filter !diff !merge binary
+player/models/*.jpg !filter !diff !merge binary
+player/models/*.png !filter !diff !merge binary

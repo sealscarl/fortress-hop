@@ -52,3 +52,26 @@ Health is TFC's health + armor turned into one number, then pulled a bit closer 
 ## Kill feed
 
 Top right: **Killer [weapon icon] Victim**, names in team colors. Icons (drawn in code): rocket, shotgun, nailgun, super nailgun, grenade launcher, pipe bomb, frag, medkit, lightning bolt for security lasers, skull for suicides (`kill`) and the world. Suicides show just the icon and the victim. Entries that involve you have a light background and stay 8 s instead of 6. Team kills are marked TEAMKILL.
+
+## Player models
+
+Other players are drawn with `player/player_model.gd` using models made in
+Meshy, rigged on the Mixamo skeleton, and prepared with
+`tools/models/prepare_player.py`:
+
+```
+python tools/models/prepare_player.py --src red_soldier_rigged.glb --out player/models/soldier.glb
+```
+
+- **Team colors:** models are made red; Blue is made by recoloring the red
+  parts in `player/team_swap.gdshader` (skin and gear are left alone).
+- **Animations:** idle, run (sped up, slowed or reversed to match movement),
+  crouch, crouch_walk and jump. Arms are always in a two-handed weapon hold.
+- **Aim and strafe:** `player/aim_modifier.gd` bends the spine up and down to
+  where the player looks, and turns the legs toward a sideways run while the
+  chest keeps facing forward.
+- **Weapon:** the class's main weapon in the right hand (the rocket launcher
+  model, or a placeholder for weapons without a model yet).
+- In Godot the bones are named `mixamorig_Hips` etc. (the `:` becomes `_`).
+
+Every class uses the Soldier model until the others are made.

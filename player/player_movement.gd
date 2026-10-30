@@ -134,23 +134,16 @@ func _apply_settings() -> void:
 	speed_label.visible = Settings.get_option("show_speed")
 
 
+## The body other players see (player/player_model.gd): animated, team
+## colored, aiming and holding the class's weapon.
 func _add_body_mesh() -> void:
-	var mesh := MeshInstance3D.new()
-	mesh.name = "Body"
-	var capsule := CapsuleMesh.new()
-	capsule.radius = HULL_RADIUS
-	capsule.height = stand_height
-	mesh.mesh = capsule
-	mesh.material_override = StandardMaterial3D.new()
-	add_child(mesh)
-	mesh.position.y = stand_height * 0.5
-	_update_team_color()
+	var body := PlayerModel.new()
+	body.name = "Body"
+	add_child(body)
 
 
 func _update_team_color() -> void:
-	var body := get_node_or_null("Body") as MeshInstance3D
-	if body:
-		(body.material_override as StandardMaterial3D).albedo_color = PlayerClasses.TEAM_COLORS[team]
+	pass   # The body model follows the team by itself.
 
 
 # --- Class, team, life -----------------------------------------------------------
@@ -543,10 +536,6 @@ func _apply_hull(height: float) -> void:
 	var hull := collision.shape as CylinderShape3D
 	hull.height = height
 	collision.position.y = height * 0.5
-	if has_node("Body"):
-		var body := $Body as MeshInstance3D
-		(body.mesh as CapsuleMesh).height = height
-		body.position.y = height * 0.5
 
 
 ## Remote players on a client aren't simulated; Game moves them from
