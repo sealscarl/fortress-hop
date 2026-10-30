@@ -109,6 +109,7 @@ func _ready() -> void:
 	_apply_hull(stand_height)
 	head.position.y = stand_eye_height
 	look_yaw = rotation.y
+	Console.apply_server_vars(self)   # sv_gravity, sv_airaccelerate, pm_airstep...
 	if is_local:
 		camera.current = true
 		Settings.changed.connect(_apply_settings)

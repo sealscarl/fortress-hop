@@ -98,6 +98,7 @@ func _client_ready(player_name: String) -> void:
 	if id in ready_peers or not multiplayer.is_server():
 		return
 	ready_peers.append(id)
+	Console.send_server_vars_to(id)   # Movement settings first, so prediction matches.
 	# Everyone already here, then the newcomer for everyone.
 	var all := []
 	for p: Player in players_root.get_children():
@@ -599,6 +600,25 @@ func request_class(c: int) -> void:
 		_do_class(1, c)
 	else:
 		_request_class.rpc_id(1, c)
+
+
+## Console "kill": respawn, counted as a suicide.
+func request_kill() -> void:
+	if multiplayer.is_server():
+		_do_kill(1)
+	else:
+		_request_kill.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_kill() -> void:
+	_do_kill(multiplayer.get_remote_sender_id())
+
+
+func _do_kill(peer: int) -> void:
+	var p := players_root.get_node_or_null(str(peer)) as Player
+	if p and p.alive and p.class_id != -1:
+		p.die(p)
 
 
 @rpc("any_peer", "call_remote", "reliable")

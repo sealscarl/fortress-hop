@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Net="*res://net/network.gd"
 Settings="*res://settings/settings.gd"
+Console="*res://console/console.gd"
 
 [display]
 

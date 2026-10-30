@@ -25,6 +25,8 @@ static var instance: GameUI
 
 ## True while any in-game menu is up (clicks shouldn't grab the mouse).
 static func menu_open() -> bool:
+	if Console.is_open():
+		return true
 	if not is_instance_valid(instance):
 		return false
 	return instance._team_panel.visible or instance._class_panel.visible \
@@ -115,7 +117,7 @@ func _process(_delta: float) -> void:
 				carrying = "YOU HAVE THE %s!" % f.name.to_upper()
 		_carry.text = carrying
 		_carry.modulate = TEAM_COLORS[1 - me.team] if carrying else Color.WHITE
-	_scoreboard.visible = Input.is_action_pressed("scoreboard")
+	_scoreboard.visible = Input.is_action_pressed("scoreboard") and not Console.is_open()
 	if _scoreboard.visible:
 		_refresh_scoreboard()
 
