@@ -297,30 +297,13 @@ func _handheld_velocity(v: Vector3) -> Vector3:
 		v.z * hh_lateral_power)
 
 
-## Flash, light and sound. Runs on every machine for every explosion.
+## Explosion visuals (weapons/effects.gd) and sound. Runs on every machine for
+## every explosion: rockets, frag grenades, Demoman grenades and pipes, concs.
 static func spawn_effect(scene: Node, type: Grenade.Type, origin: Vector3, radius: float) -> void:
-	var color := Color(1.0, 0.55, 0.15) if type == Grenade.Type.FRAG else Color(0.5, 0.8, 1.0)
-
-	var flash := MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 1.0
-	sm.height = 2.0
-	flash.mesh = sm
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	m.albedo_color = Color(color, 0.35)
-	flash.material_override = m
-	scene.add_child(flash)
-	flash.global_position = origin
-
-	var light := OmniLight3D.new()
-	light.light_color = color
-	light.light_energy = 6.0
-	light.omni_range = radius * 1.5
-	scene.add_child(light)
-	light.global_position = origin
+	if type == Grenade.Type.FRAG:
+		Effects.explosion(scene, origin, radius)
+	else:
+		Effects.concussion(scene, origin, radius)
 
 	var sound := AudioStreamPlayer3D.new()
 	sound.stream = FRAG_SOUND if type == Grenade.Type.FRAG else CONC_SOUND
@@ -329,12 +312,3 @@ static func spawn_effect(scene: Node, type: Grenade.Type, origin: Vector3, radiu
 	sound.global_position = origin
 	sound.play()
 	sound.finished.connect(sound.queue_free)
-
-	# Sphere grows to the blast radius and fades: shows exactly how far it reaches.
-	var tw := scene.create_tween().set_parallel()
-	flash.scale = Vector3.ONE * 0.2
-	tw.tween_property(flash, "scale", Vector3.ONE * radius, 0.18)
-	tw.tween_property(m, "albedo_color:a", 0.0, 0.35)
-	tw.tween_property(light, "light_energy", 0.0, 0.35)
-	tw.chain().tween_callback(flash.queue_free)
-	tw.tween_callback(light.queue_free)

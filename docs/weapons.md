@@ -118,3 +118,11 @@ python tools/models/prepare_weapon.py --src rocketlauncher.glb --out weapons/mod
 ```
 
 It reduces the mesh (rocket launcher: 1.9 M → 20k triangles), shrinks the textures (2K color, 1K normal/roughness, JPEG: 65 MB → 1.4 MB), turns the muzzle forward, scales it to `--length`, centers it, and adds `draw`, `idle` and `fire` animations. Then add it to `MODELS` and `PLACE_MODEL` in `weapons/view_model.gd`. Keep the original high-res files on your PC; only the prepared file goes in the repo.
+
+## Effects
+
+`weapons/effects.gd`, all particles made in code (no image files):
+
+- **Rocket trail:** a hot exhaust flame at the back of the rocket and a grey smoke trail that hangs in the air, spreads and fades over about 2 s. It starts just after the rocket leaves the launcher so it doesn't puff in the shooter's face, and stays continuous at any frame rate.
+- **Explosions** (rockets, frag grenades, Demoman grenades and pipes): a white flash, an orange fireball that cools to soot, sparks thrown out with gravity, dark smoke that rises and spreads for about 3 s, and a flickering light. Size scales with the blast radius.
+- **Conc grenades:** not fire. A blue flash, a shockwave ring spreading to the blast radius, and a puff of dust.

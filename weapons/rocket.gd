@@ -13,6 +13,8 @@ var shooter: Player       ## Null on a client look-alike.
 var is_real := false
 var net_id := 0
 var _age := 0.0
+var _trail: GPUParticles3D
+const TRAIL_DELAY := 0.04   ## Don't puff smoke right in the shooter's face.
 
 
 static func create(p_shooter: Player, p_kind: int, p_vel: Vector3, p_id: int) -> Rocket:
@@ -50,8 +52,34 @@ func _ready() -> void:
 		glow.omni_range = 3.0
 		add_child(glow)
 		glow.position = Vector3(0, 0, 0.25)
+		_trail = Effects.rocket_trail(self)
+		_trail.emitting = false
+		tree_exiting.connect(_end_trail)
 	if velocity.length() > 0.01:
 		look_at(global_position + velocity, Vector3.UP if absf(velocity.normalized().y) < 0.99 else Vector3.RIGHT)
+
+
+func _process(delta: float) -> void:
+	if _trail == null:
+		return
+	if not _trail.is_inside_tree():
+		get_parent().add_child(_trail)
+	# Cover the stretch flown since last frame (see Effects.rocket_trail).
+	var half := maxf(velocity.length() * delta * 0.5, 0.05)
+	_trail.global_transform = Transform3D(global_basis, global_position + global_basis.z * (0.25 + half))
+	(_trail.process_material as ParticleProcessMaterial).emission_box_extents = Vector3(0.04, 0.04, half)
+	_trail.emitting = _age > TRAIL_DELAY
+
+
+## The rocket is gone: its smoke stops and drifts away.
+func _end_trail() -> void:
+	if _trail and _trail.is_inside_tree():
+		_trail.emitting = false
+		var t := _trail
+		_trail.get_tree().create_timer(_trail.lifetime + 0.2).timeout.connect(t.queue_free)
+	elif _trail:
+		_trail.free()
+	_trail = null
 
 
 func _physics_process(delta: float) -> void:
