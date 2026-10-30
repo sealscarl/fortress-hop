@@ -128,6 +128,7 @@ func _video_tab() -> Control:
 	_choice_row(g, "Max FPS", "max_fps", ["Unlimited", "60", "120", "144", "165", "240", "300", "500"],
 		[0, 60, 120, 144, 165, 240, 300, 500])
 	_check_row(g, "Show FPS", "show_fps")
+	_choice_row(g, "Weapon position", "hand", ["Center", "Right", "Left"])
 	return g.get_parent()
 
 

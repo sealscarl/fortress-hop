@@ -11,7 +11,8 @@ Main menu → **Options**, or in game press **Esc** → **Options**. Changes app
 | Video | Window | Windowed | Windowed, borderless fullscreen, or exclusive fullscreen. |
 | Video | V-Sync | off | |
 | Video | Max FPS | Unlimited | |
-| Video | Show FPS | off | Top center. |
+| Video | Show FPS | off | Top center, under the game clock. |
+| Video | Weapon position | Center | Center, Right or Left (console `cl_hand` 0/1/2). Only changes how your own weapon is drawn: every weapon fires from the center of your view whatever you pick, and other players always see you right-handed. Left is a mirror image. |
 | Game | Volume | 80 | |
 | Game | Auto-hop | on | Hold jump to bunnyhop. |
 | Game | Show speedometer | on | Horizontal speed in m/s |

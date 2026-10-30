@@ -179,9 +179,9 @@ func _fire(kind: int, cmd: PlayerCmd) -> void:
 		K.ROCKET_LAUNCHER:
 			Game.instance.spawn_projectile(player, kind, eye + aim * 0.5, aim * d.speed)
 		K.NAILGUN, K.SUPER_NAILGUN:
-			# Nails come from slightly right of center, like a held gun.
-			var muzzle := eye + aim * 0.5 + cam.global_basis.x * 0.12 - cam.global_basis.y * 0.1
-			Game.instance.spawn_projectile(player, kind, muzzle, aim * d.speed)
+			# From the center of the view like every weapon, so the weapon
+			# position option (cl_hand) is purely visual.
+			Game.instance.spawn_projectile(player, kind, eye + aim * 0.5 - cam.global_basis.y * 0.1, aim * d.speed)
 		K.GRENADE_LAUNCHER, K.PIPEBOMB_LAUNCHER:
 			var up_aim := aim.rotated(cam.global_basis.x.normalized(), deg_to_rad(d.pitch_up_deg))
 			Game.instance.spawn_bomb(player, kind, eye + aim * 0.5, up_aim * d.speed)
@@ -297,5 +297,11 @@ func _process(delta: float) -> void:
 	var target_dip := 0.18 if switching > 0.0 else (0.08 if reloading else 0.0)
 	_dip = move_toward(_dip, target_dip, delta * 1.5)
 	_kick = move_toward(_kick, 0.0, delta * 6.0)
-	_view.position = Vector3(0.28, -0.26 - _dip, -0.55 + _kick * 0.08)
+	# Weapon position (Options / cl_hand): centered, right or left. Left is a
+	# mirror image, so asymmetric models flip the right way.
+	var hand: int = Settings.get_option("hand")
+	var side := 0.0 if hand == 0 else (0.28 if hand == 1 else -0.28)
+	var base_y := -0.32 if hand == 0 else -0.26
+	_view.position = Vector3(side, base_y - _dip, -0.55 + _kick * 0.08)
 	_view.rotation.x = _kick * 0.12 - _dip * 1.5
+	_view.scale.x = -1.0 if hand == 2 else 1.0

@@ -23,6 +23,7 @@ const DEFAULTS := {
 	"volume": 0.8,
 	"auto_hop": true,
 	"show_speed": true,
+	"hand": 0,                   # Weapon position: 0 center, 1 right, 2 left (yours only).
 }
 
 ## Bindable actions, in menu order. "" starts a new group.
