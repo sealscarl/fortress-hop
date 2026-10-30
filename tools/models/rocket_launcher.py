@@ -159,8 +159,12 @@ def build():
     for i in range(10):
         finish(box((0.03, 0.012, 0.006), (0, -0.16 + i * 0.04, TUBE_R + 0.021)), "metal", bevel=0.001)
     finish(box((0.05, 0.05, 0.04), (0, -0.09, TUBE_R + 0.042)), "paint_dark", bevel=0.005)
-    finish(cyl(0.017, 0.055, -0.115, z=TUBE_R + 0.05), "metal", bevel=0.002)           # scope tube
-    finish(cyl(0.012, 0.003, -0.061, z=TUBE_R + 0.05), "lens", bevel=0, smooth=False)  # red dot
+    # Scope tube sticks out of the block at both ends (no faces sharing a
+    # plane, which flickers), with a dark eyepiece at the back and the red
+    # lens at the front, each straddling the tube's end.
+    finish(cyl(0.017, 0.076, -0.128, z=TUBE_R + 0.05), "metal", bevel=0.002)
+    finish(cyl(0.0115, 0.002, -0.1295, z=TUBE_R + 0.05), "hole", bevel=0, smooth=False)   # eyepiece
+    finish(cyl(0.012, 0.002, -0.0525, z=TUBE_R + 0.05), "lens", bevel=0, smooth=False)    # red dot
     finish(box((0.008, 0.012, 0.03), (0, 0.24, TUBE_R + 0.035)), "metal", bevel=0.002)  # front post
     # Pistol grip, trigger guard, foregrip.
     finish(box((0.034, 0.07, 0.03), (0, -0.04, -TUBE_R - 0.008)), "metal", bevel=0.004)  # receiver block
