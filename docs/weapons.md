@@ -98,13 +98,12 @@ The view model is a simple tube (rocket launcher) or barrel (shotgun) that dips 
 
 ## First-person weapons (`weapons/view_model.gd`)
 
+- **Quake style:** always centered, no visible arms.
+- **Reloading:** the weapon drops out of view (0.12 s slide) for the whole reload while the reload sound plays for each round; it comes back up when the reload finishes or you fire. Same while switching weapons.
 - Drawn by a second camera on render layer 20, overlaid on the world: the weapon never pokes through walls, and it always uses fov 90 (73.74° vertical) whatever your FOV setting, so it doesn't stretch at fov 120. Same 3D world, so map lights light it.
-- Weapons with a model play its animations, driven by the real weapon state: `draw` on switch, `idle` loop, `fire` on every shot, and `reload_start` → `reload_insert` (once per round, as each round lands) → `reload_end`. Firing mid-reload cuts straight to `fire`.
-- Sleeves (material named `Sleeve`) take your team color.
-- Weapon position (Options / `cl_hand`): right, centered, or left (a mirror image). Placement per weapon in `PLACE_MODEL`.
-- Models so far: **rocket launcher** (`weapons/models/rocket_launcher.glb`, built by `tools/models/rocket_launcher.py` in Blender: gloved hands, muzzle-loading reload). Other weapons still use placeholder cylinders.
+- Weapons with a model play its `draw`, `idle` and `fire` animations. Placement per weapon in `PLACE_MODEL`.
+- Models so far: **rocket launcher** (`weapons/models/rocket_launcher.glb`, built by `tools/models/rocket_launcher.py`; `HANDS = False`). Other weapons still use placeholder cylinders.
 
-### Rebuilding a model
+### Adding a model
 
-1. Install Blender (or `pip install bpy`), then run `python tools/models/rocket_launcher.py` (or `blender -b -P tools/models/rocket_launcher.py`). It writes `weapons/models/rocket_launcher.glb`.
-2. Godot re-imports it automatically. Animation names must stay the same.
+A weapon `.glb` (from Meshy or anywhere) needs: the weapon alone (no arms), textured, about 5–15k triangles. Claude adds `draw`, `idle` and `fire` animations in Blender and drops it in `weapons/models/`, then adds it to `MODELS` and `PLACE_MODEL`.

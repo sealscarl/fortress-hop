@@ -179,8 +179,7 @@ func _fire(kind: int, cmd: PlayerCmd) -> void:
 		K.ROCKET_LAUNCHER:
 			Game.instance.spawn_projectile(player, kind, eye + aim * 0.5, aim * d.speed)
 		K.NAILGUN, K.SUPER_NAILGUN:
-			# From the center of the view like every weapon, so the weapon
-			# position option (cl_hand) is purely visual.
+			# From the center of the view, like every weapon.
 			Game.instance.spawn_projectile(player, kind, eye + aim * 0.5 - cam.global_basis.y * 0.1, aim * d.speed)
 		K.GRENADE_LAUNCHER, K.PIPEBOMB_LAUNCHER:
 			var up_aim := aim.rotated(cam.global_basis.x.normalized(), deg_to_rad(d.pitch_up_deg))

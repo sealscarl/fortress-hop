@@ -33,6 +33,8 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "weap
 OUT = os.path.normpath(sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else OUT)
 
 TUBE_R = 0.056
+## Quake-style first person: no visible arms. True adds the gloved hands back.
+HANDS = False
 HATCH_HINGE = Vector((-TUBE_R * 0.8, -0.12, TUBE_R * 0.55))   # Left side: the left hand loads it.
 FOREGRIP = Vector((0, 0.14, -TUBE_R - 0.05))
 GRIP = Vector((0, -0.065, -TUBE_R - 0.07))
@@ -193,7 +195,8 @@ def build():
     for a in (0.0, math.pi / 2, math.pi, math.pi * 1.5):
         fin = box((0.004, 0.04, 0.022), (math.cos(a) * 0.04, r0 + 0.01, math.sin(a) * 0.04), (0, -a, 0))
         finish(fin, "metal", bone="rocket", bevel=0.001)
-    hands()
+    if HANDS:
+        hands()
 
 
 # --- Hands ------------------------------------------------------------------------

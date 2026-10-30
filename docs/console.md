@@ -42,7 +42,7 @@ Class run speeds stay per class (`player/classes.gd`).
 
 ## Client cvars (same as Options)
 
-`sensitivity`, `m_invert`, `m_dpi`, `fov`, `cl_autohop`, `cl_showspeed`, `cl_showfps`, `cl_maxfps`, `vid_vsync`, `vid_mode` (0 windowed, 1 borderless, 2 exclusive), `volume` (0–1), `cl_hand` (weapon position: 0 center, 1 right, 2 left), `name`. Saved like the Options menu.
+`sensitivity`, `m_invert`, `m_dpi`, `fov`, `cl_autohop`, `cl_showspeed`, `cl_showfps`, `cl_maxfps`, `vid_vsync`, `vid_mode` (0 windowed, 1 borderless, 2 exclusive), `volume` (0–1), `name`. Saved like the Options menu.
 
 ## Commands
 

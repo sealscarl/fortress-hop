@@ -57,7 +57,6 @@ const CLIENT_VARS := {
 	"vid_vsync": ["vsync", "1 = V-Sync on"],
 	"vid_mode": ["window_mode", "0 windowed, 1 borderless fullscreen, 2 exclusive fullscreen"],
 	"volume": ["volume", "Master volume, 0 to 1"],
-	"cl_hand": ["hand", "Weapon position on your screen: 0 center, 1 right, 2 left"],
 }
 
 ## QW-style names for bindable actions.

@@ -1,29 +1,31 @@
 class_name ViewModel
 extends Node
-## Your first-person weapon (local player only).
+## Your first-person weapon (local player only), Quake style: centered, no
+## visible arms. While reloading, the weapon drops out of view (the reload
+## sound plays for each round) and comes back up when it's done or you fire.
 ##
 ## Drawn by its own camera on a render layer the world camera skips, then
 ## laid over the world. So it never pokes through walls, and it always uses
 ## the same field of view (fov 90) whatever your FOV setting is, so it never
 ## looks stretched. It's in the same 3D world, so map lights still light it.
 ##
-## Weapons with a model (weapons/models/*.glb) play its animations: draw,
-## idle, fire, reload_start / reload_insert (one per round) / reload_end.
-## Others show a simple placeholder. Sleeves take your team color.
+## Weapons with a model (weapons/models/*.glb) play its draw, idle and fire
+## animations. Others show a simple placeholder.
 
 const K := WeaponStats.Kind
 const LAYER := 1 << 19          ## Render layer 20: first-person weapon only.
 const FOV := 73.74              ## Vertical, = "fov 90".
+const DROP := 0.45              ## How far the weapon drops while reloading (m).
+const DROP_TIME := 0.12         ## Seconds to drop out of view / come back.
 
 const MODELS := {
 	K.ROCKET_LAUNCHER: preload("res://weapons/models/rocket_launcher.glb"),
 }
-## Where each weapon sits: [position, rotation in degrees] for the right hand
-## and for centered. Left = mirrored right.
+## Where each weapon sits: [position, rotation in degrees], centered.
 const PLACE_MODEL := {
-	K.ROCKET_LAUNCHER: [[Vector3(0.19, -0.1, -0.32), Vector3(3, 7, -2)], [Vector3(0.04, -0.2, -0.33), Vector3(6, 2, 0)]],
+	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.17, -0.3), Vector3(4, 0, 0)],
 }
-const PLACE_PLACEHOLDER := [[Vector3(0.28, -0.26, -0.55), Vector3.ZERO], [Vector3(0.0, -0.32, -0.55), Vector3.ZERO]]
+const PLACE_PLACEHOLDER := [Vector3(0.0, -0.32, -0.55), Vector3.ZERO]
 
 var weapons: WeaponManager
 var player: Player
@@ -36,11 +38,8 @@ var _model: Node3D
 var _anim: AnimationPlayer
 var _placeholder: MeshInstance3D
 var _shown := -2
-var _team := -1
-var _reloading := false
-var _last_clip := 0
 var _kick := 0.0
-var _dip := 0.0
+var _down := 0.0               ## 0 = in view, 1 = dropped out of view.
 
 
 func setup(p_weapons: WeaponManager) -> void:
@@ -91,11 +90,8 @@ func _process(delta: float) -> void:
 	var kind := weapons.current_kind()
 	if kind != _shown:
 		_show(kind)
-	if player.team != _team:
-		_team = player.team
-		_tint_sleeves()
-	if _anim:
-		_drive_animation()
+	if _anim and not _anim.is_playing():
+		_anim.play("idle", 0.15)
 	_place(delta)
 
 
@@ -106,7 +102,6 @@ func _show(kind: int) -> void:
 	_model = null
 	_anim = null
 	_placeholder = null
-	_team = -1
 	if kind == -1:
 		return
 	if MODELS.has(kind):
@@ -115,8 +110,6 @@ func _show(kind: int) -> void:
 		_anim = _model.find_children("*", "AnimationPlayer", true, false)[0]
 		_anim.get_animation("idle").loop_mode = Animation.LOOP_LINEAR
 		_set_layers(_model)
-		_reloading = false
-		_last_clip = weapons.clip[weapons.current] if weapons.current < weapons.clip.size() else 0
 		_anim.play("draw")
 		_anim.queue("idle")
 	else:
@@ -145,45 +138,9 @@ static func _set_layers(n: Node) -> void:
 		_set_layers(c)
 
 
-## The model's "Sleeve" material takes the team color.
-func _tint_sleeves() -> void:
-	if _model == null:
-		return
-	var color: Color = PlayerClasses.TEAM_COLORS[maxi(player.team, 0)].darkened(0.25)
-	for mi: MeshInstance3D in _model.find_children("*", "MeshInstance3D", true, false):
-		for i in mi.mesh.get_surface_count():
-			var mat := mi.mesh.surface_get_material(i)
-			if mat and mat.resource_name == "Sleeve":
-				var m := (mat as StandardMaterial3D).duplicate()
-				m.albedo_color = color
-				mi.set_surface_override_material(i, m)
-
-
-## Reload animations follow the real reload: start, one insert per round as
-## each round lands, then end. Firing interrupts (see fired()).
-func _drive_animation() -> void:
-	var slot := weapons.current
-	var clip_now: int = weapons.clip[slot] if slot < weapons.clip.size() else 0
-	if weapons.reloading and not _reloading:
-		_reloading = true
-		_anim.play("reload_start", 0.05)
-		_anim.queue("reload_insert")
-	elif weapons.reloading and clip_now > _last_clip:
-		_anim.stop()
-		_anim.play("reload_insert")   # The next round.
-	elif not weapons.reloading and _reloading:
-		_reloading = false
-		_anim.play("reload_end", 0.05)
-		_anim.queue("idle")
-	_last_clip = clip_now
-	if not _anim.is_playing():
-		_anim.play("idle", 0.15)
-
-
 ## Called when you fire (any weapon).
 func fired(kind: int) -> void:
 	if _anim and kind == _shown:
-		_reloading = false
 		_anim.stop()
 		_anim.play("fire")
 		_anim.queue("idle")
@@ -194,25 +151,21 @@ func fired(kind: int) -> void:
 
 
 func _place(delta: float) -> void:
-	var hand: int = Settings.get_option("hand")   # 0 center, 1 right, 2 left
-	var places: Array = PLACE_MODEL.get(_shown, PLACE_PLACEHOLDER) if _model else PLACE_PLACEHOLDER
-	var p: Array = places[0 if hand != 0 else 1]
+	var p: Array = PLACE_MODEL.get(_shown, PLACE_PLACEHOLDER) if _model else PLACE_PLACEHOLDER
 	var pos: Vector3 = p[0]
 	var rot: Vector3 = p[1]
-	if hand == 2:   # Left: mirror image of the right.
-		pos.x = -pos.x
-		rot.y = -rot.y
-		rot.z = -rot.z
+	# Out of view while reloading or switching; slides back when done.
+	var want_down := 1.0 if weapons.reloading or weapons.switching > 0.0 else 0.0
+	_down = move_toward(_down, want_down, delta / DROP_TIME)
+	_holder.visible = _down < 0.999
+	pos.y -= DROP * _down
+	rot.x -= 25.0 * _down
 	if _placeholder:
-		# Placeholders: lowered while switching or reloading, kick when firing.
-		var target_dip := 0.18 if weapons.switching > 0.0 else (0.08 if weapons.reloading else 0.0)
-		_dip = move_toward(_dip, target_dip, delta * 1.5)
 		_kick = move_toward(_kick, 0.0, delta * 6.0)
-		pos += Vector3(0, -_dip, _kick * 0.08)
-		rot.x += rad_to_deg(_kick * 0.12 - _dip * 1.5)
+		pos.z += _kick * 0.08
+		rot.x += rad_to_deg(_kick * 0.12)
 	_holder.position = pos
 	_holder.rotation_degrees = rot
-	_holder.scale = Vector3(-1.0 if hand == 2 else 1.0, 1.0, 1.0)
 
 
 ## Muzzle flash, backblast and a smoke puff (drawn with the weapon).
