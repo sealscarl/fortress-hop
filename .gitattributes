@@ -15,3 +15,5 @@ weapons/models/*.glb !filter !diff !merge binary
 player/models/*.glb !filter !diff !merge binary
 player/models/*.jpg !filter !diff !merge binary
 player/models/*.png !filter !diff !merge binary
+grenades/models/*.glb !filter !diff !merge binary
+grenades/models/*.jpg !filter !diff !merge binary

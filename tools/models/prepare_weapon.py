@@ -1,7 +1,8 @@
 """Turns a generated weapon model (Meshy etc.) into a first-person weapon.
 
     python tools/models/prepare_weapon.py --src big.glb --out weapons/models/x.glb \
-        --muzzle -x --length 0.85 [--tris 20000] [--kick 1.0]
+        --muzzle -x --length 0.85 [--tris 20000] [--kick 1.0] \
+        [--barrels twin|spin --region XMAX,ZMIN,ZMAX [--axis Y,Z]]
 
 Steps:
 1. Reduce the mesh to --tris triangles (keeps the texture mapping) and
@@ -13,6 +14,14 @@ Steps:
        draw   0.35 s  swings up into view
        idle   2 s     slow breathing sway (loops)
        fire   0.4 s   kick back and up (scaled by --kick)
+4. Optional moving barrels (--barrels), cut out of the mesh by position, in
+   the source model's coordinates as Blender imports it (Z up). Faces whose
+   center is in front of XMAX (x < XMAX) and between ZMIN and ZMAX become:
+       twin   two bones, barrel_l and barrel_r (split at y = 0), which the
+              game kicks back one after the other (nailgun)
+       spin   one bone, barrels, on the axis through (Y, Z), which the game
+              spins (super nailgun)
+   Their bones point forward (+Y in Blender) from the back of the barrels.
 Blender works Z-up with +Y forward; the exporter turns that into Godot's -Z
 forward.
 """
@@ -38,6 +47,9 @@ MUZZLE = arg("muzzle", "-x")
 LENGTH = arg("length", 0.85, float)
 TRIS = arg("tris", 20000, int)
 KICK = arg("kick", 1.0, float)
+BARRELS = arg("barrels")
+REGION = [float(v) for v in arg("region", "0,0,0").split(",")]
+AXIS = [float(v) for v in arg("axis", "0,0").split(",")]
 
 # glTF axis -> Blender axis (Blender X = X, Y = -Z, Z = Y).
 GLTF_TO_BLENDER = {"+x": Vector((1, 0, 0)), "-x": Vector((-1, 0, 0)), "+y": Vector((0, 0, 1)),
@@ -63,6 +75,49 @@ def load():
             bpy.data.objects.remove(x)
     o.name = "Weapon"
     return o
+
+
+def split_barrels(o):
+    """Detaches the barrel faces and weights each part to its bone.
+    Returns {bone name: anchor point (source coordinates)}."""
+    import bmesh
+    if not BARRELS:
+        return {}
+    xmax, zmin, zmax = REGION
+    names = ["barrel_l", "barrel_r"] if BARRELS == "twin" else ["barrels"]
+    groups = {n: o.vertex_groups.new(name=n).index for n in names + ["weapon"]}
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    dl = bm.verts.layers.deform.verify()
+
+    def part_of(c):
+        if not (c.x < xmax and zmin < c.z < zmax):
+            return None
+        if BARRELS == "twin":
+            return "barrel_r" if c.y > 0 else "barrel_l"
+        return "barrels" if (Vector((c.y, c.z)) - Vector(AXIS)).length < (zmax - zmin) else None
+
+    anchors = {}
+    for n in names:
+        faces = [f for f in bm.faces if part_of(f.calc_center_median()) == n]
+        ret = bmesh.ops.split(bm, geom=faces, use_only_faces=False)
+        verts = [g for g in ret["geom"] if isinstance(g, bmesh.types.BMVert)]
+        for v in verts:
+            v[dl].clear()
+            v[dl][groups[n]] = 1.0
+        if BARRELS == "twin":
+            ys = [v.co.y for v in verts]
+            zs = [v.co.z for v in verts]
+            anchors[n] = Vector((xmax, (min(ys) + max(ys)) / 2, (min(zs) + max(zs)) / 2))
+        else:
+            anchors[n] = Vector((xmax, AXIS[0], AXIS[1]))
+        print("part", n, len(faces), "faces, anchor", tuple(round(c, 3) for c in anchors[n]))
+    for v in bm.verts:
+        if len(v[dl]) == 0:
+            v[dl][groups["weapon"]] = 1.0
+    bm.to_mesh(o.data)
+    bm.free()
+    return anchors
 
 
 def reduce(o):
@@ -95,10 +150,13 @@ def orient(o):
     center = (mn + mx) / 2
     o.data.transform(Matrix.Scale(s, 4) @ Matrix.Translation(-center))
     o.data.update()
+    o["to_weapon"] = [list(r) for r in (Matrix.Scale(s, 4) @ Matrix.Translation(-center) @ rot)]
     print("scaled x%.3f to %.2f m long; size %s (x wide, y long, z tall)" % (s, LENGTH, tuple(round(v * s, 3) for v in (mx - mn))))
 
 
-def rig(o):
+def rig(o, anchors=None):
+    anchors = anchors or {}
+    to_weapon = Matrix(o["to_weapon"])
     bpy.ops.object.armature_add(location=(0, 0, 0))
     arm = bpy.context.active_object
     arm.name = "WeaponRig"
@@ -108,9 +166,16 @@ def rig(o):
     b.head = (0, 0, 0)
     b.tail = (0, 0.1, 0)
     b.roll = 0
+    for name, at in anchors.items():
+        c = arm.data.edit_bones.new(name)
+        c.head = to_weapon @ at
+        c.tail = c.head + Vector((0, 0.05, 0))   # Points forward, along the barrels.
+        c.roll = 0
+        c.parent = b
     bpy.ops.object.mode_set(mode="OBJECT")
-    vg = o.vertex_groups.new(name="weapon")
-    vg.add(list(range(len(o.data.vertices))), 1.0, "REPLACE")
+    if "weapon" not in o.vertex_groups:
+        vg = o.vertex_groups.new(name="weapon")
+        vg.add(list(range(len(o.data.vertices))), 1.0, "REPLACE")
     o.parent = arm
     mod = o.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
@@ -158,7 +223,8 @@ def export():
 
 if __name__ == "__main__":
     o = load()
+    parts = split_barrels(o)
     reduce(o)
     orient(o)
-    animate(rig(o))
+    animate(rig(o, parts))
     export()

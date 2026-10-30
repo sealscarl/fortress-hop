@@ -2,20 +2,28 @@ class_name Grenade
 extends RigidBody3D
 ## A thrown grenade. Bounces off the world (not players), counts down its
 ## fuse, then asks its thrower to detonate it at its current position.
+##
+## Collision is always a perfect sphere (RADIUS), whatever the model looks
+## like: a pin or spoon sticking out never changes how it bounces. Models
+## (grenades/models, tools/models/prepare_grenade.py) are fitted so their round
+## body matches the sphere. The model tumbles in flight; that's only visual
+## (the body itself doesn't spin, so it stops quickly like TFC grenades).
 
 enum Type { FRAG, CONC }
 
-const COLORS := {
-	Type.FRAG: Color(0.25, 0.35, 0.15),
-	Type.CONC: Color(0.75, 0.9, 1.0),
+const RADIUS := 0.12
+const MODELS := {
+	Type.FRAG: preload("res://grenades/models/frag.glb"),
+	Type.CONC: preload("res://grenades/models/conc.glb"),
 }
+const TUMBLE := 0.5   ## Visual spin in flight, relative to rolling at that speed.
 
 var type: Type
 var fuse_left: float
 var thrower: GrenadeThrower
 var is_real := false   ## False for a client-side look-alike.
 var net_id := 0
-var _mesh: MeshInstance3D
+var _model: Node3D
 
 
 ## Game spawns grenades on the server (real ones, with a fuse and a thrower)
@@ -49,26 +57,23 @@ func _init() -> void:
 
 	var shape := CollisionShape3D.new()
 	var sphere := SphereShape3D.new()
-	sphere.radius = 0.12
+	sphere.radius = RADIUS
 	shape.shape = sphere
 	add_child(shape)
 
-	_mesh = MeshInstance3D.new()
-	var sm := SphereMesh.new()
-	sm.radius = 0.12
-	sm.height = 0.24
-	_mesh.mesh = sm
-	add_child(_mesh)
-
 
 func _ready() -> void:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = COLORS[type]
-	if type == Type.CONC:
-		m.emission_enabled = true
-		m.emission = Color(0.4, 0.7, 1.0)
-		m.emission_energy_multiplier = 0.6
-	_mesh.set_surface_override_material(0, m)
+	_model = (MODELS[type] as PackedScene).instantiate()
+	add_child(_model)
+	# Start at a random angle so grenades don't all look the same.
+	_model.rotate_y(randf() * TAU)
+
+
+func _process(delta: float) -> void:
+	var v := linear_velocity
+	var axis := Vector3.UP.cross(v)
+	if axis.length() > 0.5:
+		_model.global_rotate(axis.normalized(), v.length() / RADIUS * TUMBLE * delta)
 
 
 func _physics_process(delta: float) -> void:

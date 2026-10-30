@@ -105,8 +105,10 @@ The view model is a simple tube (rocket launcher) or barrel (shotgun) that dips 
 - Models so far (generated in Meshy, prepared with `tools/models/prepare_weapon.py`):
   - **rocket launcher** (`weapons/models/rocket_launcher.glb`)
   - **shotgun** (`weapons/models/shotgun.glb`: `--muzzle -x --length 0.8 --tris 15000 --kick 1.3`)
+  - **nailgun** (`weapons/models/nailgun.glb`: `--muzzle -x --length 0.7 --tris 15000 --kick 0.12 --barrels twin --region -0.13,0.003,0.118`): two barrels that kick back in turn, one per nail.
+  - **super nailgun** (`weapons/models/super_nailgun.glb`: `--muzzle -x --length 0.75 --tris 15000 --kick 0.15 --barrels spin --region -0.175,0.0,0.165 --axis -0.0495,0.0825`): the four-barrel cluster spins up while firing (a quarter turn per nail) and winds down when you stop.
 
-  Other weapons still use placeholder cylinders. Each weapon with a model gets a muzzle flash in `fired()`; the third-person model holds the same model when it's the class's main weapon.
+  Other weapons still use placeholder cylinders. Moving barrels are cut out of the mesh by `--barrels` and moved by `weapons/barrel_modifier.gd` (code, not clips: at 10 shots a second the barrels' movements overlap). Each weapon with a model gets a muzzle flash in `fired()`; the third-person model holds the same model when it's the class's main weapon.
 
 ### Adding a model
 
@@ -126,3 +128,13 @@ It reduces the mesh (rocket launcher: 1.9 M → 20k triangles), shrinks the text
 - **Rocket trail:** a hot exhaust flame at the back of the rocket and a grey smoke trail that hangs in the air, spreads and fades over about 2 s. It starts just after the rocket leaves the launcher so it doesn't puff in the shooter's face, and stays continuous at any frame rate.
 - **Explosions** (rockets, frag grenades, Demoman grenades and pipes): a white flash, an orange fireball that cools to soot, sparks thrown out with gravity, dark smoke that rises and spreads for about 3 s, and a flickering light. Size scales with the blast radius.
 - **Conc grenades:** not fire. A blue flash, a shockwave ring spreading to the blast radius, and a puff of dust.
+
+## Grenade models
+
+`grenades/models/frag.glb` and `conc.glb`, prepared with `tools/models/prepare_grenade.py` (fits the round body to the collision sphere, 4k triangles, 1K texture):
+
+```
+python tools/models/prepare_grenade.py --src hand_grenade.glb --out grenades/models/frag.glb
+```
+
+Grenade collision is always a perfect sphere (0.12 m radius, `Grenade.RADIUS`), whatever the model looks like: the pin and spoon are only visual and never change how a grenade bounces or rests. The model tumbles in flight (visual only).

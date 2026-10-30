@@ -161,6 +161,8 @@ func _on_ground() -> bool:
 const HANDS := {
 	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.08, 0.06), Vector3(0.0, -0.08, -0.16)],
 	K.SHOTGUN: [Vector3(0.0, -0.06, 0.12), Vector3(0.0, -0.03, -0.14)],
+	K.NAILGUN: [Vector3(0.0, -0.06, 0.1), Vector3(0.0, -0.04, -0.12)],
+	K.SUPER_NAILGUN: [Vector3(0.0, -0.06, 0.1), Vector3(0.0, -0.05, -0.12)],
 }
 
 

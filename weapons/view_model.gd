@@ -21,12 +21,18 @@ const DROP_TIME := 0.12         ## Seconds to drop out of view / come back.
 const MODELS := {
 	K.ROCKET_LAUNCHER: preload("res://weapons/models/rocket_launcher.glb"),
 	K.SHOTGUN: preload("res://weapons/models/shotgun.glb"),
+	K.NAILGUN: preload("res://weapons/models/nailgun.glb"),
+	K.SUPER_NAILGUN: preload("res://weapons/models/super_nailgun.glb"),
 }
 ## Where each weapon sits: [position, rotation in degrees], centered.
 const PLACE_MODEL := {
 	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.27, -0.24), Vector3(-2, 0, 0)],
 	K.SHOTGUN: [Vector3(0.0, -0.285, -0.17), Vector3(-2, 0, 0)],
+	K.NAILGUN: [Vector3(0.0, -0.27, -0.15), Vector3(-2, 0, 0)],
+	K.SUPER_NAILGUN: [Vector3(0.039, -0.28, -0.16), Vector3(-2, 0, 0)],
 }
+## Half the model's length: where the barrels end (muzzle flash).
+const MUZZLE := {K.NAILGUN: 0.35, K.SUPER_NAILGUN: 0.375}
 const PLACE_PLACEHOLDER := [Vector3(0.0, -0.32, -0.55), Vector3.ZERO]
 
 var weapons: WeaponManager
@@ -38,6 +44,7 @@ var _cam: Camera3D             ## The weapon camera.
 var _viewport: SubViewport
 var _model: Node3D
 var _anim: AnimationPlayer
+var _barrels: BarrelModifier   ## Nailgun / super nailgun moving barrels.
 var _placeholder: MeshInstance3D
 var _shown := -2
 var _kick := 0.0
@@ -103,6 +110,7 @@ func _show(kind: int) -> void:
 		c.queue_free()
 	_model = null
 	_anim = null
+	_barrels = null
 	_placeholder = null
 	if kind == -1:
 		return
@@ -112,6 +120,7 @@ func _show(kind: int) -> void:
 		_anim = _model.find_children("*", "AnimationPlayer", true, false)[0]
 		_anim.get_animation("idle").loop_mode = Animation.LOOP_LINEAR
 		_set_layers(_model)
+		_barrels = BarrelModifier.attach(_model)
 		_anim.play("draw")
 		_anim.queue("idle")
 	else:
@@ -150,6 +159,9 @@ func fired(kind: int) -> void:
 			_flash([[Vector3(0, 0, -0.44), Color(1.0, 0.75, 0.35), 0.06, 4.0], [Vector3(0, 0, 0.42), Color(1.0, 0.55, 0.2), 0.1, 2.0]])
 		elif kind == K.SHOTGUN:
 			_flash([[Vector3(0, 0.03, -0.41), Color(1.0, 0.8, 0.4), 0.05, 3.0]])
+		if _barrels:
+			_barrels.fire()
+			_nail_flash(kind)
 	else:
 		_kick = 1.0 if kind != K.NAILGUN and kind != K.SUPER_NAILGUN else 0.3
 
@@ -170,6 +182,16 @@ func _place(delta: float) -> void:
 		rot.x += rad_to_deg(_kick * 0.12)
 	_holder.position = pos
 	_holder.rotation_degrees = rot
+
+
+## Small flash at the end of the barrel that just fired.
+func _nail_flash(kind: int) -> void:
+	var bone := _barrels.last_barrel()
+	var sk := _barrels.get_skeleton()
+	if bone == -1 or sk == null:
+		return
+	var at := _model.global_transform.affine_inverse() * (sk.global_transform * sk.get_bone_global_pose(bone).origin)
+	_flash([[Vector3(at.x, at.y, -MUZZLE.get(kind, 0.35)), Color(1.0, 0.85, 0.5), 0.025, 1.5]])
 
 
 ## Muzzle flash (and the launcher's backblast), drawn with the weapon.
