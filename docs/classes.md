@@ -16,7 +16,7 @@ Health is TFC's health + armor turned into one number, then pulled a bit closer 
 ## Teams
 
 - **Red** spawns at the south end of the test map, **Blue** at the north end. Each base has a green resupply pad.
-- **No friendly fire.** Teammates' bullets, nails, rockets, grenades and pipes don't hurt or push you. Shotgun pellets pass through teammates.
+- **Friendly fire is on by default** (`mp_friendlyfire 1`). Teammates' pellets, nails, rockets, grenades and pipes hurt and push you. Killing a teammate shows TEAMKILL in the kill feed and costs the killer a kill. With `mp_friendlyfire 0`, teammates are neither hurt nor pushed and pellets pass through them. The Medic's medkit always heals teammates.
 - **Your own explosions** still hurt you (half damage) and push you, so rocket, pipe and grenade jumps work.
 - **Concs push everyone in range, teammates included** (as in TFC), and never do damage.
 
@@ -44,7 +44,11 @@ Health is TFC's health + armor turned into one number, then pulled a bit closer 
 | Scout nailgun, 1 s | 10 nails, no reload |
 | Demoman grenade launcher | Grenade explodes after 2.5 s |
 | Pipes | 6 out; Mouse 5 detonates all; one pipe under you = 34 self-damage + 321 ups up |
-| Soldier rockets a teammate's feet | Teammate keeps full health |
+| Soldier rockets a teammate's feet (friendly fire on) | Teammate 175 → 95 HP and pushed; with `mp_friendlyfire 0`, untouched |
 | Soldier kills an enemy Scout with 2 rockets | Shooter sees **-86** and **-85**; all 3 clients agree on the scoreboard |
 | Medic medkits a hurt teammate | Medic sees **+25 +25**; teammate's health goes up |
 | Medic movement and handheld conc | Unchanged (320 run, 539 strafe-jump, conc lift) |
+
+## Kill feed
+
+Top right: **Killer [weapon icon] Victim**, names in team colors. Icons (drawn in code): rocket, shotgun, nailgun, super nailgun, grenade launcher, pipe bomb, frag, medkit, lightning bolt for security lasers, skull for suicides (`kill`) and the world. Suicides show just the icon and the victim. Entries that involve you have a light background and stay 8 s instead of 6. Team kills are marked TEAMKILL.

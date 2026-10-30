@@ -541,8 +541,8 @@ func hitscan(shooter: Player, origin: Vector3, dirs: Array[Vector3], max_range: 
 		var best_dist := max_range if wall.is_empty() else origin.distance_to(wall.position)
 		var best: Player = null
 		for p: Player in players_root.get_children():
-			if p == shooter or not p.alive or p.team == shooter.team:
-				continue  # Pellets pass through teammates.
+			if p == shooter or not p.alive or (p.team == shooter.team and not friendly_fire()):
+				continue  # Pellets pass through teammates (friendly fire off).
 			if not rewind.has(p.peer_id) and not rewind.is_empty():
 				continue  # Wasn't alive at that moment.
 			var hull: Array = rewind.get(p.peer_id, [p.center(), p.hull_half_segment()])
@@ -557,7 +557,7 @@ func hitscan(shooter: Player, origin: Vector3, dirs: Array[Vector3], max_range: 
 			damage[best] = damage.get(best, 0.0) + damage_each
 	for p: Player in damage:
 		var dir := (p.center() - origin).normalized()
-		p.hurt(damage[p], shooter, dir * damage[p] * knockback)
+		p.hurt(damage[p], shooter, dir * damage[p] * knockback, "shotgun")
 	send_all(self, "_tracers", [origin, ends])
 
 
@@ -609,7 +609,7 @@ func medkit(medic: Player, origin: Vector3, aim: Vector3, reach: float, heal_amo
 	if best.team == medic.team:
 		best.heal(heal_amount, medic)
 	else:
-		best.hurt(damage, medic, aim * 2.0)
+		best.hurt(damage, medic, aim * 2.0, "medkit")
 
 
 # --- Teams, classes, scores ------------------------------------------------------
@@ -645,7 +645,13 @@ func _request_kill() -> void:
 func _do_kill(peer: int) -> void:
 	var p := players_root.get_node_or_null(str(peer)) as Player
 	if p and p.alive and p.class_id != -1:
+		p.last_weapon = "skull"
 		p.die(p)
+
+
+## Server cvar mp_friendlyfire: teammates hurt (and push) each other.
+static func friendly_fire() -> bool:
+	return Console.sv("mp_friendlyfire") != 0.0
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -696,13 +702,16 @@ func _do_class(peer: int, c: int) -> void:
 func on_death(victim: Player, killer: Player) -> void:
 	if scores.has(victim.peer_id):
 		scores[victim.peer_id].deaths += 1
+	var teamkill := killer != null and killer != victim and killer.team == victim.team
 	if killer and killer != victim and scores.has(killer.peer_id):
-		scores[killer.peer_id].kills += 1
+		scores[killer.peer_id].kills += -1 if teamkill else 1   # TF: a team kill costs a frag.
 	send_all(self, "_sync_scores", [scores])
 	var kname: String = scores[killer.peer_id].name if killer and scores.has(killer.peer_id) else ""
 	var vname: String = scores[victim.peer_id].name if scores.has(victim.peer_id) else "?"
+	var weapon: String = victim.last_weapon if victim.last_weapon != "" else "skull"
 	send_all(self, "_kill_feed", [kname if killer != victim else "", vname,
-		killer.team if killer else -1, victim.team, victim.death_msg])
+		killer.team if killer else -1, victim.team, victim.death_msg, weapon,
+		killer.peer_id if killer else 0, victim.peer_id, teamkill])
 
 
 @rpc("authority", "call_local", "reliable")
@@ -711,9 +720,12 @@ func _sync_scores(s: Dictionary) -> void:
 
 
 @rpc("authority", "call_local", "reliable")
-func _kill_feed(killer_name: String, victim_name: String, killer_team: int, victim_team: int, how := "") -> void:
+func _kill_feed(killer_name: String, victim_name: String, killer_team: int, victim_team: int, how := "",
+		weapon := "skull", killer_peer := 0, victim_peer := 0, teamkill := false) -> void:
 	if ui:
-		ui.add_kill(killer_name, victim_name, killer_team, victim_team, how)
+		var me := multiplayer.get_unique_id()
+		ui.add_kill(killer_name, victim_name, killer_team, victim_team, how, weapon,
+			me == killer_peer or me == victim_peer, teamkill)
 
 
 # --- Damage numbers ---------------------------------------------------------------

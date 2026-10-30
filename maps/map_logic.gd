@@ -427,7 +427,7 @@ func _physics_process(delta: float) -> void:
 func _laser_kill(p: Player, msg: String) -> void:
 	send_all("_play_at", ["zap", p.center()])
 	p.death_msg = msg.strip_edges()
-	p.take_damage(9999.0, null)
+	p.take_damage(9999.0, null, "laser")
 
 
 func _take_flag(f: Dictionary, p: Player) -> void:

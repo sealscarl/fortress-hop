@@ -22,6 +22,7 @@ In Quake units, like QW. **Only the host can change them.** They're sent to ever
 | `pm_bunnyspeedcap` | 0 | Max horizontal speed while hopping, in ups (0 = no cap) |
 | `pm_stepheight` | 18 | Tallest step you walk up |
 | `pm_airstep` | 1 | Step up stairs in the air too (bhop up stairs) |
+| `mp_friendlyfire` | 1 | Teammates hurt and push each other; a team kill costs a frag |
 | `pm_stepdown` | 1 | Walking down stairs/slopes keeps you on the ground |
 | `pm_slopeboost` | 0.5 | Downhill landings add forward speed (0 = none, 1 = full Quake) |
 | `tf_conc_maxspeed` | 1000 | Horizontal speed cap after a conc (0 = no cap) |

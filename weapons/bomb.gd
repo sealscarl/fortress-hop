@@ -105,5 +105,6 @@ func explode() -> void:
 		return
 	var d: Dictionary = WeaponStats.DATA[kind]
 	Game.instance.announce_explosion(net_id, Grenade.Type.FRAG, global_position, d.radius)
-	Explosions.radial(get_tree(), global_position, d.damage, d.radius, d.knockback, shooter, d.self_scale)
+	Explosions.radial(get_tree(), global_position, d.damage, d.radius, d.knockback, shooter, d.self_scale,
+		1.0, WeaponStats.icon(kind))
 	queue_free()

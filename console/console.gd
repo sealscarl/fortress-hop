@@ -36,6 +36,7 @@ const SERVER_VARS := {
 	"tf_rocket_selfpush": [0.8, "Share of rocket push you get yourself (rocket jump strength)", "", 1.0],
 	"tf_flagthrow_speed": [400.0, "Flag throw speed along your aim (ups)", "", 1.0],
 	"tf_flagthrow_up": [200.0, "Extra upward speed on a flag throw (ups)", "", 1.0],
+	"mp_friendlyfire": [1.0, "1 = teammates can hurt and push each other (team kills cost a frag)", "", 1.0],
 	"pm_stepdown": [1.0, "1 = walking down stairs/slopes keeps you on the ground", "step_down", 0.0],
 	"pm_slopeboost": [0.5, "Landing on a downhill slope adds forward speed (0 = none, 1 = full Quake)", "slope_boost", 1.0],
 }

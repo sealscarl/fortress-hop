@@ -47,6 +47,7 @@ func _ready() -> void:
 	_feed.offset_right = -24
 	_feed.offset_top = 24
 	_feed.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_feed.add_theme_constant_override("separation", 4)
 	_feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_feed)
 
@@ -396,25 +397,60 @@ func _cell(text: String, width: int, align: HorizontalAlignment, color: Color, s
 
 # --- Kill feed -------------------------------------------------------------------
 
-func add_kill(killer: String, victim: String, killer_team: int, victim_team: int, how := "") -> void:
-	var l := RichTextLabel.new()
-	l.bbcode_enabled = true
-	l.fit_content = true
-	l.scroll_active = false
-	l.autowrap_mode = TextServer.AUTOWRAP_OFF
-	l.custom_minimum_size = Vector2(496, 0)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_size_override("normal_font_size", 18)
-	var v := "[color=#%s]%s[/color]" % [TEAM_COLORS[victim_team].to_html(false), victim]
-	if killer.is_empty():
-		l.text = "[right]%s %s[/right]" % [v, how if how else "died"]
-	else:
-		l.text = "[right][color=#%s]%s[/color]  killed  %s[/right]" % [
-			TEAM_COLORS[killer_team].to_html(false), killer, v]
-	_feed.add_child(l)
-	if _feed.get_child_count() > 5:
+## One kill feed entry, top right: "Killer [weapon] Victim", team colored.
+## Suicides and the world show just the icon and the victim. Entries that
+## involve you get a light background (like TF2).
+func add_kill(killer: String, victim: String, killer_team: int, victim_team: int, how := "",
+		weapon := "skull", involves_me := false, teamkill := false) -> void:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.92, 0.9, 0.82, 0.92) if involves_me else Color(0.06, 0.07, 0.09, 0.72)
+	style.set_corner_radius_all(4)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 3
+	style.content_margin_bottom = 3
+	panel.add_theme_stylebox_override("panel", style)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(row)
+	if not killer.is_empty():
+		row.add_child(_feed_label(killer, TEAM_COLORS[killer_team], involves_me))
+	var icon := TextureRect.new()
+	icon.texture = HudIcons.weapon(weapon)
+	icon.custom_minimum_size = Vector2(52, 26)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(icon)
+	row.add_child(_feed_label(victim, TEAM_COLORS[victim_team], involves_me))
+	var note := ""
+	if teamkill:
+		note = "TEAMKILL"
+	elif killer.is_empty() and how != "":
+		note = how   # The map's own message, e.g. a security laser.
+	if note:
+		var n := _feed_label(note, Color(1.0, 0.45, 0.35) if teamkill else Color(0.75, 0.75, 0.75), involves_me)
+		n.add_theme_font_size_override("font_size", 14)
+		row.add_child(n)
+	_feed.add_child(panel)
+	if _feed.get_child_count() > 6:
 		_feed.get_child(0).queue_free()
-	get_tree().create_timer(6.0).timeout.connect(l.queue_free)
+	get_tree().create_timer(8.0 if involves_me else 6.0).timeout.connect(panel.queue_free)
+
+
+func _feed_label(text: String, color: Color, on_light: bool) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 18)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_color_override("font_color", color.darkened(0.25) if on_light else color.lightened(0.15))
+	if not on_light:
+		l.add_theme_constant_override("outline_size", 4)
+		l.add_theme_color_override("font_outline_color", Color.BLACK)
+	return l
 
 
 # --- Helpers ---------------------------------------------------------------------

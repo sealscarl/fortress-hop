@@ -213,20 +213,21 @@ func detonate(type: Grenade.Type, origin: Vector3, handheld: bool, grenade_id :=
 func _frag_explode(origin: Vector3, handheld: bool) -> void:
 	if not handheld:
 		Explosions.radial(get_tree(), origin, frag_damage, frag_radius, frag_knockback,
-			player, self_damage_scale)
+			player, self_damage_scale, 1.0, "frag")
 		return
 	# In your hand: you get the directional handheld push and half damage;
-	# enemies around you get the normal blast. Teammates are untouched.
+	# everyone else around you gets the normal blast (teammates only with
+	# friendly fire on).
 	for p: Player in get_tree().get_nodes_in_group("player"):
 		if not p.alive or p.center().distance_to(origin) > frag_radius:
 			continue
 		if p == player:
 			p.launch(p.velocity + _handheld_frag_dir(p.velocity) * hh_frag_push)
-			p.take_damage(frag_damage * self_damage_scale, player)
+			p.take_damage(frag_damage * self_damage_scale, player, "frag")
 		else:
 			var offset := p.center() - origin
 			var points := frag_damage * (1.0 - offset.length() / frag_radius)
-			p.hurt(points, player, offset.normalized() * points * frag_knockback)
+			p.hurt(points, player, offset.normalized() * points * frag_knockback, "frag")
 
 
 ## A frag in your hand pushes you the way you're already going. Upward

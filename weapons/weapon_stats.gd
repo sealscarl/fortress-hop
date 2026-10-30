@@ -56,5 +56,18 @@ const DATA := {
 }
 
 
+## Kill feed icon (ui/hud_icons.gd) for a weapon.
+static func icon(kind: int) -> String:
+	match kind:
+		Kind.ROCKET_LAUNCHER: return "rocket"
+		Kind.SHOTGUN: return "shotgun"
+		Kind.NAILGUN: return "nailgun"
+		Kind.SUPER_NAILGUN: return "supernail"
+		Kind.GRENADE_LAUNCHER: return "gl"
+		Kind.PIPEBOMB_LAUNCHER: return "pipe"
+		Kind.MEDKIT: return "medkit"
+	return "skull"
+
+
 static func get_stat(kind: int, key: String) -> Variant:
 	return DATA[kind][key]

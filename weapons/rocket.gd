@@ -79,12 +79,12 @@ func _physics_process(delta: float) -> void:
 	if _is_nail():
 		if hit.collider is Player:
 			var victim: Player = hit.collider
-			victim.hurt(d.damage, shooter, velocity.normalized() * d.damage * d.knockback)
+			victim.hurt(d.damage, shooter, velocity.normalized() * d.damage * d.knockback, WeaponStats.icon(kind))
 		Game.instance.announce_explosion(net_id, Grenade.Type.FRAG, hit.position, 0.0)
 	else:
 		# Explode just in front of the surface so the blast isn't inside the wall.
 		var at: Vector3 = hit.position + hit.normal * 0.05
 		Game.instance.announce_explosion(net_id, Grenade.Type.FRAG, at, d.radius)
 		Explosions.radial(get_tree(), at, d.damage, d.radius, d.knockback, shooter,
-			Console.sv("tf_rocket_selfdamage"), Console.sv("tf_rocket_selfpush"))
+			Console.sv("tf_rocket_selfdamage"), Console.sv("tf_rocket_selfpush"), "rocket")
 	queue_free()

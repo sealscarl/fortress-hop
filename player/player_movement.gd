@@ -181,13 +181,13 @@ func set_alive(value: bool) -> void:
 
 ## Server only: hurt by someone (or something, if attacker is null), with a
 ## knockback push. No friendly fire: teammates can't hurt or push you.
-func hurt(amount: float, attacker: Player, push: Vector3) -> void:
+func hurt(amount: float, attacker: Player, push: Vector3, weapon := "") -> void:
 	if not alive:
 		return
-	if attacker and attacker != self and attacker.team == team:
+	if attacker and attacker != self and attacker.team == team and not Game.friendly_fire():
 		return
 	launch(velocity + push)
-	take_damage(amount, attacker)
+	take_damage(amount, attacker, weapon)
 
 
 ## Server only. Returns how much health was actually restored.
@@ -572,9 +572,14 @@ func launch(new_velocity: Vector3) -> void:
 
 ## Server only. Damage that ignores teams (falling out of the world, your
 ## own grenade in your hand). Use hurt() for anything a player caused.
-func take_damage(amount: float, attacker: Player = null) -> void:
+## What last hurt us (kill feed icon: rocket, shotgun, frag, laser...).
+var last_weapon := ""
+
+
+func take_damage(amount: float, attacker: Player = null, weapon := "") -> void:
 	if not alive:
 		return
+	last_weapon = weapon
 	var dealt := minf(amount, maxf(health, 0.0))   # For the scoreboard: no overkill.
 	health -= amount
 	if attacker and attacker != self:
