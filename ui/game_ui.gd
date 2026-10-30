@@ -313,8 +313,10 @@ func _update_status_rows(entries: Array[Dictionary]) -> void:
 
 # --- Scoreboard -----------------------------------------------------------------
 
-const _SCORE_COLS := [["NAME", 300, HORIZONTAL_ALIGNMENT_LEFT], ["CLASS", 150, HORIZONTAL_ALIGNMENT_LEFT],
-	["KILLS", 90, HORIZONTAL_ALIGNMENT_RIGHT], ["DEATHS", 100, HORIZONTAL_ALIGNMENT_RIGHT]]
+const _SCORE_COLS := [["NAME", 220, HORIZONTAL_ALIGNMENT_LEFT], ["CLASS", 110, HORIZONTAL_ALIGNMENT_LEFT],
+	["KILLS", 64, HORIZONTAL_ALIGNMENT_RIGHT], ["DEATHS", 80, HORIZONTAL_ALIGNMENT_RIGHT],
+	["DAMAGE", 92, HORIZONTAL_ALIGNMENT_RIGHT], ["TOUCHES", 96, HORIZONTAL_ALIGNMENT_RIGHT],
+	["CARRY", 80, HORIZONTAL_ALIGNMENT_RIGHT], ["CAPS", 62, HORIZONTAL_ALIGNMENT_RIGHT]]
 
 var _score_box: VBoxContainer
 var _score_sig := ""
@@ -324,7 +326,7 @@ func _make_scoreboard() -> Control:
 	var box := _panel("SCOREBOARD")
 	_score_box = VBoxContainer.new()
 	_score_box.add_theme_constant_override("separation", 4)
-	_score_box.custom_minimum_size = Vector2(660, 0)
+	_score_box.custom_minimum_size = Vector2(900, 0)
 	box.add_child(_score_box)
 	var root := box.get_parent().get_parent()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -338,8 +340,11 @@ func _refresh_scoreboard() -> void:
 	var rows := [[], []]
 	for p: Player in g.players_root.get_children():
 		var sc: Dictionary = g.scores.get(p.peer_id, {"name": "?", "kills": 0, "deaths": 0})
+		var carry := int(sc.get("carry", 0.0))
 		rows[p.team].append([sc.kills, sc.deaths, sc.name,
-			PlayerClasses.stat(p.class_id, "name") if p.class_id != -1 else "—", p == g.local_player])
+			PlayerClasses.stat(p.class_id, "name") if p.class_id != -1 else "—", p == g.local_player,
+			roundi(sc.get("damage", 0.0)), int(sc.get("touches", 0)), "%d:%02d" % [floori(carry / 60.0), carry % 60],
+			int(sc.get("caps", 0))])
 	var points := [0, 0]
 	if MapLogic.instance:
 		points = MapLogic.instance.team_scores
@@ -372,7 +377,7 @@ func _refresh_scoreboard() -> void:
 		for r in rows[t]:
 			var me: bool = r[4]
 			var color := Color(1.0, 0.92, 0.6) if me else Color.WHITE
-			var vals := [r[2], r[3], str(r[0]), str(r[1])]
+			var vals := [r[2], r[3], str(r[0]), str(r[1]), str(r[5]), str(r[6]), r[7], str(r[8])]
 			for i in vals.size():
 				grid.add_child(_cell(vals[i], _SCORE_COLS[i][1], _SCORE_COLS[i][2], color, 19))
 

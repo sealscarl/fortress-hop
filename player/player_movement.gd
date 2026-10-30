@@ -575,9 +575,12 @@ func launch(new_velocity: Vector3) -> void:
 func take_damage(amount: float, attacker: Player = null) -> void:
 	if not alive:
 		return
+	var dealt := minf(amount, maxf(health, 0.0))   # For the scoreboard: no overkill.
 	health -= amount
 	if attacker and attacker != self:
 		Game.instance.report_damage(attacker, self, amount)
+		if attacker.team != team:
+			Game.instance.add_stat(attacker.peer_id, "damage", dealt)
 	if health <= 0.0:
 		die(attacker)
 

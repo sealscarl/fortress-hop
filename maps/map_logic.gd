@@ -395,6 +395,7 @@ func _physics_process(delta: float) -> void:
 	for f in flags:
 		if f.state == FlagState.CARRIED and is_instance_valid(f.carrier):
 			f.pos = f.carrier.global_position
+			Game.instance.add_stat(f.carrier.peer_id, "carry", delta)
 		elif f.state == FlagState.DROPPED:
 			f.lock_left = maxf(f.lock_left - delta, 0.0)
 			if f.moving and _move_flag(f, delta):
@@ -432,6 +433,7 @@ func _laser_kill(p: Player, msg: String) -> void:
 func _take_flag(f: Dictionary, p: Player) -> void:
 	f.state = FlagState.CARRIED
 	f.carrier = p
+	Game.instance.add_stat(p.peer_id, "touches", 1)
 	var who: String = _name(p)
 	send_all("_announce", [f.msg_taken if f.msg_taken else "You have the %s!" % f.name, p.peer_id, "taken"])
 	send_all("_announce_team", ["Your team has the enemy flag!", p.team, "%s has the %s!" % [who, f.name], "taken", p.peer_id])
@@ -439,6 +441,7 @@ func _take_flag(f: Dictionary, p: Player) -> void:
 
 func _capture(f: Dictionary, p: Player, c: Dictionary) -> void:
 	team_scores[p.team] += c.score
+	Game.instance.add_stat(p.peer_id, "caps", 1)
 	var msg := "%s captured the %s!" % [_name(p), f.name]
 	_return_flag(f, "", false)
 	if c.refill:

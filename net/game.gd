@@ -119,7 +119,8 @@ func _add_player(id: int, player_name: String) -> void:
 	var pos := at.global_position if at else Vector3(0, 0.1, 60)
 	var yaw := at.rotation.y if at else 0.0
 	var n := player_name.strip_edges().substr(0, 24)
-	scores[id] = {"name": n if n else "Player %d" % (scores.size() + 1), "kills": 0, "deaths": 0}
+	scores[id] = {"name": n if n else "Player %d" % (scores.size() + 1), "kills": 0, "deaths": 0,
+		"damage": 0.0, "touches": 0, "carry": 0.0, "caps": 0}
 	var data := [id, pos, yaw, team]
 	_spawn_player(data)
 	for peer in ready_peers:
@@ -231,6 +232,23 @@ func _server_tick_players(delta: float) -> void:
 			p.weapons.tick(cmd, delta)
 			_flag_input(p, cmd)
 	_flush_damage_numbers()
+	_scores_sync_left -= delta
+	if _scores_dirty and _scores_sync_left <= 0.0:
+		_scores_dirty = false
+		_scores_sync_left = 0.5
+		send_all(self, "_sync_scores", [scores])
+
+
+var _scores_dirty := false
+var _scores_sync_left := 0.0
+
+
+## Server: add to a scoreboard stat (damage, touches, carry, caps). Sent to
+## everyone at most twice a second.
+func add_stat(peer: int, key: String, amount: float) -> void:
+	if scores.has(peer):
+		scores[peer][key] = scores[peer].get(key, 0) + amount
+		_scores_dirty = true
 
 
 func _flag_input(p: Player, cmd: PlayerCmd) -> void:
