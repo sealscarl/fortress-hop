@@ -2,6 +2,7 @@
 game's player model.
 
     python tools/models/prepare_player.py --src red_soldier_rigged.glb --out player/models/soldier.glb
+    (same for scout, medic, demoman)
 
 Steps:
 1. Keeps the skinned character and its skeleton; drops stray objects.
@@ -37,9 +38,23 @@ OUT = arg("out")
 P = "mixamorig:"
 X, Y, Z = Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
 
-# Where the hands go for the weapon hold, in meters on the model (facing -Y).
+# Where the hands go for the weapon hold (model facing -Y), measured on the
+# Soldier: relative to the middle of the shoulders, in Soldier arm lengths.
+# Other models are scaled to their own shoulders and arms.
+REF_SHOULDERS = Vector((0.0015, 0.057, 1.444))
+REF_ARM = 0.486
+REF_HIPS = 0.93                            # Soldier hip height (crouch depth scales with it).
 HOLD_RIGHT = Vector((-0.13, -0.3, 1.13))   # On the grip, near the chest.
 HOLD_LEFT = Vector((0.06, -0.52, 1.24))    # Forward, under the barrel.
+
+
+def body_scale(arm):
+    """(shoulder middle, arm length ratio, leg length ratio) of this model."""
+    l, r = rest_head(arm, "LeftArm"), rest_head(arm, "RightArm")
+    mid = (l + r) / 2
+    reach = (rest_head(arm, "RightHand") - r).length
+    print("shoulders", tuple(round(c, 3) for c in mid), "arm %.3f" % reach, "hips %.3f" % rest_head(arm, "Hips").z)
+    return mid, reach / REF_ARM, rest_head(arm, "Hips").z / REF_HIPS
 
 
 def load():
@@ -108,9 +123,12 @@ def arm_hold(arm, side, target, pole):
 
 
 def hold_pose(arm):
+    mid, k, _ = body_scale(arm)
+    right = mid + (HOLD_RIGHT - REF_SHOULDERS) * k
+    left = mid + (HOLD_LEFT - REF_SHOULDERS) * k
     p = {}
-    p.update(arm_hold(arm, "Right", HOLD_RIGHT, Vector((-0.6, 0.3, -1))))
-    p.update(arm_hold(arm, "Left", HOLD_LEFT, Vector((0.7, 0.1, -1))))
+    p.update(arm_hold(arm, "Right", right, Vector((-0.6, 0.3, -1))))
+    p.update(arm_hold(arm, "Left", left, Vector((0.7, 0.1, -1))))
     return p
 
 
@@ -213,9 +231,11 @@ def animate(arm):
         (2.0, with_hold({}), Vector()),
     ], fps)
 
+    legk = body_scale(arm)[2]   # Longer legs drop further for the same knee bend.
+
     def crouch(lt, ls, rt, rs, drop=0.47):
         return with_hold({**legs(lt, ls, rt, rs), "Spine": rot(X, 22), "Spine1": rot(X, 10), "Spine2": rot(X, 6),
-                          "Neck": rot(X, -14), "Head": rot(X, -20)}), Vector((0, 0.03, -drop))
+                          "Neck": rot(X, -14), "Head": rot(X, -20)}), Vector((0, 0.03, -drop * legk))
     c = (92, 132, 88, 128)
     new_action(arm, "crouch", [(0.0, *crouch(*c)), (0.5, *crouch(*c, drop=0.475)), (1.0, *crouch(*c))], fps)
     new_action(arm, "crouch_walk", [

@@ -74,4 +74,5 @@ python tools/models/prepare_player.py --src red_soldier_rigged.glb --out player/
   model, or a placeholder for weapons without a model yet).
 - In Godot the bones are named `mixamorig_Hips` etc. (the `:` becomes `_`).
 
-Every class uses the Soldier model until the others are made.
+- Models: Scout, Soldier, Medic, Demoman (`player/models/<class>.glb`). The hand hold and crouch depth are scaled to each model's arms and legs, so all four share the same animations.
+- A class without a model uses the Soldier.

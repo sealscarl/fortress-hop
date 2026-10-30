@@ -10,9 +10,15 @@ extends Node3D
 ## - Aim and strafe (player/aim_modifier.gd): the spine bends to where the
 ##   player looks; strafing turns the legs while the chest faces forward.
 ## - Holds a world version of the class's weapon.
-## Every class uses the Soldier model until the others are made.
+## Each class has its own model (all on the same Mixamo skeleton); a class
+## without one uses the Soldier.
 
+## Model per class name (player/classes.gd); others use "default".
 const MODELS := {
+	"Scout": preload("res://player/models/scout.glb"),
+	"Soldier": preload("res://player/models/soldier.glb"),
+	"Medic": preload("res://player/models/medic.glb"),
+	"Demoman": preload("res://player/models/demoman.glb"),
 	"default": preload("res://player/models/soldier.glb"),
 }
 const SHADER := preload("res://player/team_swap.gdshader")
@@ -32,11 +38,35 @@ var _last_pos := Vector3.ZERO
 var _vel := Vector3.ZERO
 var _air_time := 0.0
 var _playing := ""
+var _model_key := ""
 
 
 func _ready() -> void:
 	player = get_parent() as Player
-	_model = (MODELS["default"] as PackedScene).instantiate()
+	_last_pos = player.global_position
+	_build(_key_for_class())
+
+
+func _key_for_class() -> String:
+	if player.class_id == -1:
+		return "default"
+	var n: String = PlayerClasses.stat(player.class_id, "name")
+	return n if MODELS.has(n) else "default"
+
+
+## (Re)builds the body for the given model: animations, aim, hand, materials.
+func _build(key: String) -> void:
+	_model_key = key
+	if _model:
+		_model.queue_free()
+	if _weapon:
+		_weapon.queue_free()
+	_weapon = null
+	_weapon_kind = -2
+	_mats.clear()
+	_team = -1
+	_playing = ""
+	_model = (MODELS[key] as PackedScene).instantiate()
 	_model.rotation.y = PI   # The models face +Z; players face -Z.
 	add_child(_model)
 	_anim = _model.find_children("*", "AnimationPlayer", true, false)[0]
@@ -64,11 +94,13 @@ func _ready() -> void:
 					m.set_shader_parameter("has_normal", true)
 				mi.set_surface_override_material(i, m)
 				_mats.append(m)
-	_last_pos = player.global_position
 	_play("idle")
 
 
 func _process(delta: float) -> void:
+	var key := _key_for_class()
+	if key != _model_key:
+		_build(key)
 	if player.team != _team:
 		_team = player.team
 		for m in _mats:
