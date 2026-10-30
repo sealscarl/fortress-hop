@@ -7,16 +7,19 @@ Everything is original and built from code. The model is one skinned mesh on
 a small skeleton, so it imports into Godot (or Unreal) like any artist-made
 weapon: a Skeleton3D plus an AnimationPlayer with these clips:
 
-    idle            2 s loop, gentle breathing sway
+    idle            2 s loop, gentle breathing sway (hands on the grips)
     draw            0.35 s, comes up from below
     fire            0.4 s, recoil kick and trigger pull
-    reload_start    0.12 s, tilt and open the loading hatch
-    reload_insert   0.8 s, one rocket slides in (repeat per round)
+    reload_start    0.12 s, swing the front end across, toward the middle
+    reload_insert   0.8 s, left hand fetches a rocket and pushes it into the
+                    muzzle, tail first (repeat per round)
     reload_end      0.25 s, close the hatch and level out
 
-Blender axes while building: X right, Y forward (barrel), Z up, 1 unit =
-1 m. The rig is turned 180 degrees before export so the barrel points down
-Godot's -Z (forward).
+Blender axes: X right, Y forward (barrel), Z up, 1 unit = 1 m. The glTF
+exporter turns Blender's +Y into Godot's -Z, so the barrel points forward.
+
+Includes gloved hands and team-colored sleeves (material "Sleeve", which the
+game can recolor per team).
 """
 import math
 import os
@@ -30,7 +33,11 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "weap
 OUT = os.path.normpath(sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else OUT)
 
 TUBE_R = 0.056
-HATCH_HINGE = Vector((TUBE_R * 0.8, -0.12, TUBE_R * 0.55))
+HATCH_HINGE = Vector((-TUBE_R * 0.8, -0.12, TUBE_R * 0.55))   # Left side: the left hand loads it.
+FOREGRIP = Vector((0, 0.14, -TUBE_R - 0.05))
+GRIP = Vector((0, -0.065, -TUBE_R - 0.07))
+ROCKET_REST = Vector((0, 0.25, 0))   # Rocket bone, inside the front of the tube.
+GRIP_AXIS = Vector((0, math.sin(math.radians(14)), math.cos(math.radians(14))))
 
 
 # --- Scene ------------------------------------------------------------------
@@ -69,6 +76,10 @@ def mats():
     MATS["lens"] = material("Lens", (0.4, 0.02, 0.02), 0.0, 0.1, emission=(1.0, 0.08, 0.05))
     MATS["rocket_body"] = material("RocketBody", (0.75, 0.74, 0.7), 0.3, 0.4)
     MATS["rocket_tip"] = material("RocketTip", (0.6, 0.08, 0.06), 0.2, 0.4)
+    MATS["glove"] = material("Glove", (0.06, 0.06, 0.065), 0.0, 0.75)
+    MATS["glove_pad"] = material("GlovePad", (0.16, 0.16, 0.17), 0.0, 0.6)
+    MATS["cuff"] = material("Cuff", (0.11, 0.1, 0.09), 0.0, 0.85)
+    MATS["sleeve"] = material("Sleeve", (0.5, 0.12, 0.1), 0.0, 0.8)
 
 
 PARTS = []   # (object, bone)
@@ -165,16 +176,112 @@ def build():
                                         location=(0, 0.14, -TUBE_R - 0.05))   # foregrip (upright)
     finish(bpy.context.active_object, "rubber", bevel=0.004)
     # Loading hatch on the right side (opens for reloads) and its port.
-    finish(box((0.006, 0.09, 0.05), (TUBE_R + 0.001, -0.12, 0.0)), "hole", bevel=0)       # open port (dark)
-    hatch = box((0.008, 0.096, 0.056), (TUBE_R + 0.006, -0.12, 0.0))
+    finish(box((0.006, 0.09, 0.05), (-TUBE_R - 0.001, -0.12, 0.0)), "hole", bevel=0)      # open port (dark)
+    hatch = box((0.008, 0.096, 0.056), (-TUBE_R - 0.006, -0.12, 0.0))
     finish(hatch, "paint_dark", bone="hatch", bevel=0.003)
-    finish(cyl(0.004, 0.1, -0.17, x=HATCH_HINGE.x + 0.004, z=HATCH_HINGE.z, verts=12), "steel", bone="hatch", bevel=0)
+    finish(cyl(0.004, 0.1, -0.17, x=HATCH_HINGE.x - 0.004, z=HATCH_HINGE.z, verts=12), "steel", bone="hatch", bevel=0)
     # The rocket used in the reload (rests hidden inside the tube).
-    finish(cyl(0.034, 0.16, -0.2), "rocket_body", bone="rocket", bevel=0.002)
-    finish(cyl(0.034, 0.06, -0.04, r2=0.004), "rocket_tip", bone="rocket", bevel=0.001)
+    # The rocket used in the reload: rests hidden inside the front of the
+    # tube, tip forward. It's loaded through the muzzle, tail first.
+    r0 = ROCKET_REST.y - 0.08
+    finish(cyl(0.034, 0.16, r0), "rocket_body", bone="rocket", bevel=0.002)
+    finish(cyl(0.034, 0.06, r0 + 0.16, r2=0.004), "rocket_tip", bone="rocket", bevel=0.001)
     for a in (0.0, math.pi / 2, math.pi, math.pi * 1.5):
-        fin = box((0.004, 0.04, 0.022), (math.cos(a) * 0.04, -0.19, math.sin(a) * 0.04), (0, -a, 0))
+        fin = box((0.004, 0.04, 0.022), (math.cos(a) * 0.04, r0 + 0.01, math.sin(a) * 0.04), (0, -a, 0))
         finish(fin, "metal", bone="rocket", bevel=0.001)
+    hands()
+
+
+# --- Hands ------------------------------------------------------------------------
+
+def capsule(a, b, r, mat, bone, verts=16):
+    """A rounded rod from a to b."""
+    a, b = Vector(a), Vector(b)
+    d = b - a
+    bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=d.length, location=(a + b) / 2)
+    o = bpy.context.active_object
+    o.rotation_mode = "QUATERNION"
+    o.rotation_quaternion = d.normalized().to_track_quat("Z", "Y")
+    bpy.ops.object.transform_apply(rotation=True)
+    finish(o, mat, bone=bone, bevel=0)
+    for p in (a, b):
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=verts, ring_count=verts // 2, radius=r, location=p)
+        finish(bpy.context.active_object, mat, bone=bone, bevel=0)
+
+
+def blob(center, size, mat, bone, rot=None, bevel=0.012):
+    """A soft rounded box (palms, backs of hands)."""
+    o = box(size, center)
+    if rot is not None:
+        o.rotation_mode = "QUATERNION"
+        o.rotation_quaternion = rot
+        bpy.ops.object.transform_apply(rotation=True)
+    mod = o.modifiers.new("Bevel", "BEVEL")
+    mod.width = bevel
+    mod.segments = 4
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier="Bevel")
+    finish(o, mat, bone=bone, bevel=0)
+
+
+def wrap_finger(center, axis, u, sweep_deg, grip_r, r, bone, start_deg=0.0, segs=3, curl=1.0):
+    """A finger wrapped around a grip: knuckle segments along an arc around
+    the grip's axis, starting at direction u. Fingertips taper a little."""
+    axis, u = Vector(axis).normalized(), Vector(u).normalized()
+    v = axis.cross(u)
+    pts = []
+    for i in range(segs + 1):
+        ang = math.radians(start_deg + sweep_deg * i / segs)
+        rad = grip_r + r * (1.0 - 0.15 * i / segs) * curl
+        pts.append(Vector(center) + (u * math.cos(ang) + v * math.sin(ang)) * rad)
+    for i in range(segs):
+        capsule(pts[i], pts[i + 1], r * (1.0 - 0.12 * i), "glove", bone)
+    # Knuckle pad on the first joint.
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, radius=r * 1.08, location=pts[0])
+    finish(bpy.context.active_object, "glove_pad", bone=bone, bevel=0)
+
+
+def arm(wrist, elbow, bone):
+    """Glove cuff at the wrist, then a sleeved forearm back to the elbow."""
+    wrist, elbow = Vector(wrist), Vector(elbow)
+    d = (elbow - wrist).normalized()
+    capsule(wrist, wrist + d * 0.05, 0.03, "cuff", bone)
+    capsule(wrist + d * 0.05, elbow, 0.041, "sleeve", bone, verts=20)
+
+
+def hands():
+    # Right hand on the pistol grip: palm behind, three fingers wrapped round
+    # the front, index finger on the trigger, thumb over the left side.
+    gc = GRIP + GRIP_AXIS * 0.0
+    fwd = Vector((0, 1, 0)) - GRIP_AXIS * GRIP_AXIS.y   # Grip "front", perpendicular to its axis.
+    fwd.normalize()
+    rot = Vector((0, 0, 1)).rotation_difference(GRIP_AXIS)
+    blob(gc - fwd * 0.03 + Vector((0.012, 0, 0)), (0.05, 0.03, 0.085), "glove", "hand_r", rot)
+    for k, (axial, r) in enumerate([(0.012, 0.0105), (-0.013, 0.0102), (-0.036, 0.0092)]):
+        c = gc + GRIP_AXIS * axial
+        wrap_finger(c, GRIP_AXIS, Vector((1, 0, 0)), 215, 0.021, r, "hand_r", start_deg=-25)
+    # Index finger: from the knuckle forward onto the trigger and curled round it.
+    k0 = gc + GRIP_AXIS * 0.04 + Vector((0.024, -0.008, 0))
+    capsule(k0, (0.012, -0.03, -TUBE_R - 0.026), 0.0105, "glove", "hand_r")
+    capsule((0.012, -0.03, -TUBE_R - 0.026), (0.004, -0.014, -TUBE_R - 0.034), 0.0095, "glove", "hand_r")
+    capsule((0.004, -0.014, -TUBE_R - 0.034), (0.0, -0.02, -TUBE_R - 0.046), 0.009, "glove", "hand_r")
+    # Thumb over the top-left.
+    t0 = gc - fwd * 0.03 + GRIP_AXIS * 0.03 + Vector((0.02, 0, 0))
+    capsule(t0, gc + GRIP_AXIS * 0.05 + Vector((-0.012, -0.02, 0)), 0.012, "glove", "hand_r")
+    capsule(gc + GRIP_AXIS * 0.05 + Vector((-0.012, -0.02, 0)), gc + GRIP_AXIS * 0.055 + Vector((-0.026, 0.002, 0)),
+            0.011, "glove", "hand_r")
+    arm(gc - fwd * 0.04 - GRIP_AXIS * 0.05 + Vector((0.015, 0, 0)), (0.13, -0.5, -0.32), "hand_r")
+
+    # Left hand on the foregrip: palm on the left, four fingers round the
+    # front, thumb round the back.
+    fc = FOREGRIP
+    up = Vector((0, 0, 1))
+    blob(fc + Vector((-0.029, -0.004, 0.0)), (0.028, 0.05, 0.08), "glove", "hand_l")
+    for axial, r in [(0.03, 0.0102), (0.009, 0.0105), (-0.012, 0.0102), (-0.032, 0.0092)]:
+        wrap_finger(fc + up * axial, up, Vector((-1, 0, 0)), -210, 0.018, r, "hand_l", start_deg=20)
+    capsule(fc + Vector((-0.03, -0.02, 0.025)), fc + Vector((-0.008, -0.028, 0.04)), 0.012, "glove", "hand_l")
+    capsule(fc + Vector((-0.008, -0.028, 0.04)), fc + Vector((0.016, -0.02, 0.04)), 0.011, "glove", "hand_l")
+    arm(fc + Vector((-0.04, -0.01, -0.05)), (-0.32, -0.32, -0.42), "hand_l")
 
 
 # --- Skeleton and skinning ------------------------------------------------------
@@ -184,7 +291,9 @@ BONES = {
     "weapon": ((0, 0, 0), None),
     "trigger": ((0, -0.018, -TUBE_R - 0.018), "weapon"),
     "hatch": (tuple(HATCH_HINGE), "weapon"),
-    "rocket": ((0, -0.12, 0), "weapon"),
+    "hand_r": (tuple(GRIP), "weapon"),
+    "hand_l": (tuple(FOREGRIP), "weapon"),
+    "rocket": (tuple(ROCKET_REST), "hand_l"),   # Carried by the left hand while reloading.
 }
 
 
@@ -224,13 +333,15 @@ def rig():
 
 # --- Animation --------------------------------------------------------------------
 
-def key(arm, frame, bone, loc=(0, 0, 0), rot_deg=(0, 0, 0)):
+def key(arm, frame, bone, loc=(0, 0, 0), rot_deg=(0, 0, 0), scale=1.0):
     pb = arm.pose.bones[bone]
     pb.rotation_mode = "XYZ"
     pb.location = loc
     pb.rotation_euler = [math.radians(a) for a in rot_deg]
+    pb.scale = (scale, scale, scale)
     pb.keyframe_insert("location", frame=frame)
     pb.keyframe_insert("rotation_euler", frame=frame)
+    pb.keyframe_insert("scale", frame=frame)
 
 
 def action(arm, name, keys, loop=False):
@@ -240,8 +351,8 @@ def action(arm, name, keys, loop=False):
     arm.animation_data.action = act
     for bone in BONES:
         frames = keys.get(bone, [(0.0, (0, 0, 0), (0, 0, 0))])
-        for t, loc, rot in frames:
-            key(arm, round(t * FPS), bone, loc, rot)
+        for f in frames:
+            key(arm, round(f[0] * FPS), bone, *f[1:])
     # Smooth, slightly snappy curves.
     for fc in _fcurves(act):
         for kp in fc.keyframe_points:
@@ -283,22 +394,26 @@ def animate(arm):
                    (0.16, (0, -0.012, 0.002), (1.5, 0, 0)), (0.4, Z, Z)],
         "trigger": [(0.0, Z, Z), (0.03, (0, -0.005, 0), (-25, 0, 0)), (0.15, Z, Z)],
     })
-    # Reload: tilt to show the hatch, open it, push a rocket in, close.
-    tilt = ((-0.03, 0.0, -0.035), (-8, 0, -22))
+    # Reload through the muzzle: swing the launcher across the body so the
+    # front end comes in close to the middle of the screen; the left hand fetches a rocket from below, lines it up in
+    # front of the muzzle (tip forward) and pushes it in, then back to the grip.
+    tilt = ((0.02, 0.06, -0.06), (-4, 14, 62))
+    held = (0.0, -0.14, -0.046)      # Rocket bone offset that puts it in the left palm.
+    low = (-0.16, -0.26, -0.3)       # Hand down at the belt, off screen.
+    front = (0.0, 0.39, 0.046)       # Rocket lined up just in front of the muzzle.
+    push = (0.0, 0.3, 0.05)          # Hand follows it in a little.
     action(arm, "reload_start", {
         "weapon": [(0.0, Z, Z), (0.12, *tilt)],
-        "hatch": [(0.0, Z, Z), (0.12, Z, (0, -95, 0))],
-        "rocket": [(0.0, (0.25, -0.2, -0.05), Z), (0.12, (0.25, -0.2, -0.05), Z)],
     })
     action(arm, "reload_insert", {
-        "weapon": [(0.0, *tilt), (0.5, *tilt), (0.56, (-0.03, 0.012, -0.03), (-10, 0, -23)), (0.8, *tilt)],
-        "hatch": [(0.0, Z, (0, -95, 0)), (0.8, Z, (0, -95, 0))],
-        "rocket": [(0.0, (0.25, -0.22, -0.06), (0, 0, 25)), (0.25, (0.1, -0.12, -0.01), (0, 0, 10)),
-                   (0.42, (0.06, -0.02, 0), Z), (0.55, Z, Z), (0.8, Z, Z)],
+        "weapon": [(0.0, *tilt), (0.5, *tilt), (0.57, (0.03, 0.05, -0.062), (-5, 14, 61)), (0.8, *tilt)],
+        "hand_l": [(0.0, Z, Z), (0.15, low, (-30, 0, 20)), (0.36, front, (0, 0, 0)),
+                   (0.46, front, (0, 0, 0)), (0.57, push, (0, 0, 0)), (0.8, Z, Z)],
+        "rocket": [(0.0, held, Z, 0.0), (0.14, held, Z, 0.0), (0.15, held, Z, 1.0), (0.46, held, Z, 1.0),
+                   (0.57, Z, Z, 1.0), (0.8, Z, Z, 1.0)],
     })
     action(arm, "reload_end", {
         "weapon": [(0.0, *tilt), (0.25, Z, Z)],
-        "hatch": [(0.0, Z, (0, -95, 0)), (0.1, Z, Z), (0.25, Z, Z)],
     })
 
 
@@ -316,7 +431,4 @@ if __name__ == "__main__":
     build()
     arm = rig()
     animate(arm)
-    # Face Godot's forward (-Z): the barrel is built along +Y, which the glTF
-    # exporter turns into +Z, so turn the whole rig around once.
-    arm.rotation_euler.z = math.pi
     export()
