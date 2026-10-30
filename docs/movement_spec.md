@@ -14,7 +14,7 @@ Units: 1 m = 32 Quake units, so 10 m/s = 320 ups. The speedometer shows both.
 | `gravity` | 25 m/s² | sv_gravity 800 |
 | `max_speed` | 10 m/s | 320 ups |
 | `ground_accelerate` | 10 | sv_accelerate 10 |
-| `friction` | 4 | sv_friction 4 |
+| `friction` | 6 | sv_friction 6 (Quake: 4) |
 | `stop_speed` | 3.125 m/s | sv_stopspeed 100 |
 | `air_accelerate` | 10 | sv_airaccelerate 10 |
 | `air_wish_speed_cap` | 0.9375 m/s | 30 ups |
@@ -23,6 +23,8 @@ Units: 1 m = 32 Quake units, so 10 m/s = 320 ups. The speedometer shows both.
 | `stand_height` / `crouch_height` | 1.8 / 1.1 m | |
 | `step_height` | 0.5625 m | STEPSIZE 18 units |
 | `air_step` | on | FTEQW / QWTF Live `pm_airstep 1` |
+| `step_down` | on | FTEQW `pm_stepdown 1` |
+| `slope_boost` | 0.5 | Half of Quake's downhill landing gain |
 
 The player hull is a flat-bottomed cylinder, 0.4 m radius (Quake uses a flat-bottomed box), so you can stand on step edges.
 
@@ -34,6 +36,20 @@ Quake `PM_StepSlideMove`, with FTEQW's airstep:
 - **In the air** the same step-up runs if you hit a step face and there's floor within 18 units below your feet, so **you can bhop up stairs without losing speed**. You can't climb more than 18 units above that floor.
 - **Speed is never changed by a step.** Horizontal speed carries through and vertical speed is exactly what it was without the step, so there's no boost.
 - Taller ledges and walls stop you as usual.
+- **Walking down** stairs or slopes keeps you on the ground (`pm_stepdown`), instead of a small fall at every step.
+- **The camera eases over steps** (about 0.1 s) instead of jumping with your body, up or down. This is purely visual; your hull and your shots move exactly as before.
+
+## Slopes
+
+Landing on a **downhill** slope deflects your fall along it, as in Quake, so part of the fall becomes forward speed. `slope_boost` (console `pm_slopeboost`) keeps half of Quake's gain. Uphill landings never cost speed.
+
+Bhopping onto a 30 m ramp at 640 ups (one landing on it):
+
+| Ramp | Speed after landing |
+| --- | --- |
+| 15° | 670 ups (+30) |
+| 25° | 695 ups (+55) |
+| 35° | 733 ups (+93) |
 
 Physics engines round collision edges slightly (Jolt especially), which would make a step's lip look like a steep slope. The step code checks just past the lip for flat ground and sets you flat on top, matching Quake's sharp-edged hull.
 

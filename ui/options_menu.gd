@@ -122,7 +122,7 @@ func _mouse_tab() -> Control:
 func _video_tab() -> Control:
 	var g := _tab("Video")
 	_number_row(g, "Field of view", "fov", 70, 130, 1,
-		"Horizontal FOV at 4:3, like Quake/TF2 \"fov\". Classic is 90; 106 was our old default. Wider screens see extra to the sides.", true)
+		"Horizontal FOV at 4:3, like Quake/TF2 \"fov\". Default 90 (classic). Wider screens see extra to the sides.", true)
 	_choice_row(g, "Window", "window_mode", ["Windowed", "Fullscreen (borderless)", "Exclusive fullscreen"])
 	_check_row(g, "V-Sync", "vsync", "Off is smoother for aiming; on stops screen tearing.")
 	_choice_row(g, "Max FPS", "max_fps", ["Unlimited", "60", "120", "144", "165", "240", "300", "500"],

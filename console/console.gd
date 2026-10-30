@@ -18,7 +18,7 @@ const SERVER_VARS := {
 	"sv_gravity": [800.0, "Gravity (ups²)", "gravity", U],
 	"sv_accelerate": [10.0, "Ground acceleration", "ground_accelerate", 1.0],
 	"sv_airaccelerate": [10.0, "Air acceleration (strafing)", "air_accelerate", 1.0],
-	"sv_friction": [4.0, "Ground friction", "friction", 1.0],
+	"sv_friction": [6.0, "Ground friction", "friction", 1.0],
 	"sv_stopspeed": [100.0, "Friction acts as if you're at least this fast (ups)", "stop_speed", U],
 	"pm_jumpspeed": [270.0, "Jump upward speed (ups)", "jump_velocity", U],
 	"pm_airwishspeed": [30.0, "Max speed added per air tick toward your strafe (ups). Quake: 30", "air_wish_speed_cap", U],
@@ -31,6 +31,10 @@ const SERVER_VARS := {
 	"tf_hhconc_minup": [320.0, "Handheld conc minimum upward speed (ups)", "grenades.hh_min_up_speed", U],
 	"tf_hhfrag_push": [1000.0, "Handheld frag push (ups)", "grenades.hh_frag_push", U],
 	"tf_gren_fuse": [3.0, "Grenade fuse (seconds)", "grenades.fuse_time", 1.0],
+	"tf_rocket_selfdamage": [0.72, "Share of rocket damage you take yourself. 0.72 = 4 rocket jumps, the 5th kills", "", 1.0],
+	"tf_rocket_selfpush": [0.8, "Share of rocket push you get yourself (rocket jump strength)", "", 1.0],
+	"pm_stepdown": [1.0, "1 = walking down stairs/slopes keeps you on the ground", "step_down", 0.0],
+	"pm_slopeboost": [0.5, "Landing on a downhill slope adds forward speed (0 = none, 1 = full Quake)", "slope_boost", 1.0],
 }
 
 ## Client cvars: name -> [Settings key, help].
@@ -364,12 +368,19 @@ func set_server_var(cvar: String, v: float) -> void:
 	print_line(_describe(cvar))
 
 
+## A server cvar's current value.
+func sv(cvar: String) -> float:
+	return float(_active()[cvar])
+
+
 ## Sets one Player's movement and grenade values from the active cvars.
 func apply_server_vars(p: Player) -> void:
 	var vals := _active()
 	for k in SERVER_VARS:
 		var d = SERVER_VARS[k]
 		var target: String = d[2]
+		if target == "":
+			continue   # Server-only rule (read with sv()), nothing to set on players.
 		var value: Variant = vals[k] / d[3] if d[3] != 0.0 else vals[k] != 0.0
 		if target.begins_with("grenades."):
 			p.grenades.set(target.substr(9), value)

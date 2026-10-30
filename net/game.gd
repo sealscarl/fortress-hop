@@ -332,9 +332,11 @@ func _apply_snapshot(snap: Array) -> void:
 		max_correction = maxf(max_correction, (predicted[0] as Vector3).distance_to(server_state[0]))
 	local_player.set_state(server_state)
 	var delta := 1.0 / Engine.physics_ticks_per_second
+	local_player.replaying = true   # Re-running ticks: don't redo view effects.
 	for c in _pending:
 		local_player.simulate(c, delta)
 		_history[c.seq] = local_player.get_state()
+	local_player.replaying = false
 	local_player.apply_look()
 
 

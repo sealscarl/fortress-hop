@@ -31,7 +31,8 @@ All weapon numbers live in `weapons/weapon_stats.gd`; which class carries what i
 | Rocket speed | 31.25 m/s (1000 ups) | Our choice (TFC: 900) |
 | Damage / radius | 100 / 5 m (160 u) | Quake radius = damage + 40 units |
 | Knockback | 0.25 m/s per damage point | Quake (8 ups per point) |
-| Self-damage | × 0.5 | Rocket jumps cost health |
+| Self-damage | × 0.72 (`tf_rocket_selfdamage`) | A rocket jump costs ~54 HP: a 250 HP Soldier gets 4, the 5th kills |
+| Self-push | × 0.8 (`tf_rocket_selfpush`) | Rocket jump: ~720 ups up, ~10 m high |
 
 Rockets fly straight with no gravity and explode on the first wall or player they touch. Damage and knockback fall off linearly to the edge of the radius.
 

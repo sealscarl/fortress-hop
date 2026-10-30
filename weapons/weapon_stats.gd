@@ -10,7 +10,9 @@ const DATA := {
 	Kind.ROCKET_LAUNCHER: {
 		"name": "ROCKETS", "clip": 4, "reserve": 20, "interval": 0.8,
 		"reload_first": 0.92, "reload_each": 0.8,
-		"speed": 31.25, "damage": 100.0, "radius": 5.0, "knockback": 0.25, "self_scale": 0.5,
+		"speed": 31.25, "damage": 100.0, "radius": 5.0, "knockback": 0.25,
+		# Self damage and self push for rocket jumps are console cvars:
+		# tf_rocket_selfdamage, tf_rocket_selfpush (console/console.gd).
 		"view": [Color(0.25, 0.32, 0.22), 0.07, 0.75],
 	},
 	Kind.SHOTGUN: {

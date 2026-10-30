@@ -15,7 +15,7 @@ const DEFAULTS := {
 	"sensitivity": 4.5,          # 0.099°/count, about what we had before.
 	"invert_y": false,
 	"dpi": 800,                  # Only used to show cm/360.
-	"fov": 106.0,                # Horizontal at 4:3, like Quake's "fov". 106 = what we had before.
+	"fov": 90.0,                 # Horizontal at 4:3, like Quake's "fov".
 	"window_mode": 0,            # 0 windowed, 1 fullscreen, 2 exclusive fullscreen.
 	"vsync": false,
 	"max_fps": 0,                # 0 = unlimited.

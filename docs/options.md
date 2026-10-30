@@ -7,7 +7,7 @@ Main menu → **Options**, or in game press **Esc** → **Options**. Changes app
 | Mouse | Sensitivity | 4.5 | Quake/Source scale (0.022° per count × sens), so a TFC/QW/CS/TF2 sensitivity carries over 1:1. Shows degrees per count and cm/360. |
 | Mouse | Mouse DPI | 800 | Only used for the cm/360 readout. |
 | Mouse | Invert mouse Y | off | |
-| Video | Field of view | 106 | Horizontal at 4:3, like Quake/TF2 `fov`. 106 matches the old built-in view; classic is 90. Widescreen adds view to the sides. |
+| Video | Field of view | 90 | Horizontal at 4:3, like Quake/TF2 `fov`. Widescreen adds view to the sides. |
 | Video | Window | Windowed | Windowed, borderless fullscreen, or exclusive fullscreen. |
 | Video | V-Sync | off | |
 | Video | Max FPS | Unlimited | |

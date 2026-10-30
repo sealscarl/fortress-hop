@@ -6,7 +6,7 @@ class_name Explosions
 
 ## Server only.
 static func radial(tree: SceneTree, origin: Vector3, damage: float, radius: float,
-		knockback: float, attacker: Player, self_damage_scale: float) -> void:
+		knockback: float, attacker: Player, self_damage_scale: float, self_push_scale := 1.0) -> void:
 	for p: Player in tree.get_nodes_in_group("player"):
 		if p.is_queued_for_deletion() or not p.alive:
 			continue
@@ -17,4 +17,5 @@ static func radial(tree: SceneTree, origin: Vector3, damage: float, radius: floa
 		var points := damage * (1.0 - dist / radius)
 		var dir := offset / dist if dist > 0.05 else Vector3.UP
 		var scale := self_damage_scale if p == attacker else 1.0
-		p.hurt(points * scale, attacker, dir * points * knockback)
+		var push := self_push_scale if p == attacker else 1.0
+		p.hurt(points * scale, attacker, dir * points * knockback * push)

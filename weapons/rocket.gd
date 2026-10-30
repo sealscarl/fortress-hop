@@ -85,5 +85,6 @@ func _physics_process(delta: float) -> void:
 		# Explode just in front of the surface so the blast isn't inside the wall.
 		var at: Vector3 = hit.position + hit.normal * 0.05
 		Game.instance.announce_explosion(net_id, Grenade.Type.FRAG, at, d.radius)
-		Explosions.radial(get_tree(), at, d.damage, d.radius, d.knockback, shooter, d.self_scale)
+		Explosions.radial(get_tree(), at, d.damage, d.radius, d.knockback, shooter,
+			Console.sv("tf_rocket_selfdamage"), Console.sv("tf_rocket_selfpush"))
 	queue_free()

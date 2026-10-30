@@ -15,18 +15,22 @@ In Quake units, like QW. **Only the host can change them.** They're sent to ever
 | `sv_gravity` | 800 | Gravity |
 | `sv_accelerate` | 10 | Ground acceleration |
 | `sv_airaccelerate` | 10 | Air acceleration (strafing) |
-| `sv_friction` | 4 | Ground friction |
+| `sv_friction` | 6 | Ground friction (Quake: 4) |
 | `sv_stopspeed` | 100 | Friction acts as if you're at least this fast |
 | `pm_jumpspeed` | 270 | Jump upward speed |
 | `pm_airwishspeed` | 30 | Max speed added per air tick toward your strafe (Quake's hard-coded 30) |
 | `pm_bunnyspeedcap` | 0 | Max horizontal speed while hopping, in ups (0 = no cap) |
 | `pm_stepheight` | 18 | Tallest step you walk up |
 | `pm_airstep` | 1 | Step up stairs in the air too (bhop up stairs) |
+| `pm_stepdown` | 1 | Walking down stairs/slopes keeps you on the ground |
+| `pm_slopeboost` | 0.5 | Downhill landings add forward speed (0 = none, 1 = full Quake) |
 | `tf_conc_maxspeed` | 1000 | Horizontal speed cap after a conc (0 = no cap) |
 | `tf_hhconc_hpower` / `tf_hhconc_vpower` | 2.74 / 4.1 | Handheld conc multipliers |
 | `tf_hhconc_minup` | 320 | Handheld conc minimum upward speed |
 | `tf_hhfrag_push` | 1000 | Handheld frag push |
 | `tf_gren_fuse` | 3 | Grenade fuse, seconds |
+| `tf_rocket_selfdamage` | 0.72 | Share of your own rocket's damage you take (4 rocket jumps, the 5th kills) |
+| `tf_rocket_selfpush` | 0.8 | Share of your own rocket's push you get (rocket jump strength) |
 
 Class run speeds stay per class (`player/classes.gd`).
 

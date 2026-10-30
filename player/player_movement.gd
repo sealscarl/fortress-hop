@@ -29,8 +29,8 @@ const HULL_RADIUS := 0.4
 @export var max_speed := 10.0
 ## Quake: sv_accelerate 10.
 @export var ground_accelerate := 10.0
-## Quake: sv_friction 4.
-@export var friction := 4.0
+## Quake: sv_friction 4. Ours: 6 (snappier stops).
+@export var friction := 6.0
 ## Below this speed, friction acts as if you were moving this fast, so you
 ## stop crisply instead of sliding forever. Quake: sv_stopspeed 100.
 @export var stop_speed := 3.125
@@ -51,6 +51,12 @@ const HULL_RADIUS := 0.4
 ## FTEQW / QWTF Live "pm_airstep": the same step-up works in the air, so you
 ## can bhop up stairs without losing (or gaining) speed.
 @export var air_step := true
+## FTEQW "pm_stepdown": walking (not jumping) down stairs or slopes keeps you
+## on the ground instead of dropping off every step.
+@export var step_down := true
+## Landing on a downhill slope turns part of your fall into forward speed,
+## like Quake (0 = none, 1 = full Quake). Uphill landings never cost speed.
+@export var slope_boost := 0.5
 
 @export_group("Crouch")
 @export var stand_height := 1.8
@@ -280,10 +286,67 @@ func simulate(cmd: PlayerCmd, delta: float) -> void:
 		velocity.y -= gravity * delta
 
 	_cap_horizontal_speed()
+	var pre_move_velocity := velocity
 	_step_slide_move(not on_ground or wants_jump)
+	if on_ground and not wants_jump and not on_floor and step_down:
+		_stick_to_ground()
+	if not on_ground and on_floor and slope_boost > 0.0:
+		_slope_landing(pre_move_velocity)
 
 	if global_position.y < -50.0 and multiplayer.is_server():
 		die(null)
+
+
+## Walking off a step or down a slope: drop onto ground up to a step below.
+func _stick_to_ground() -> void:
+	var hit := KinematicCollision3D.new()
+	if not test_move(global_transform, Vector3.DOWN * step_height, hit):
+		return
+	var floor_y := _floor_height(hit)
+	if is_nan(floor_y):
+		return
+	var before := global_position.y
+	global_position.y -= hit.get_travel().length()
+	velocity.y = 0.0
+	on_floor = true
+	_add_view_step(before - global_position.y)
+
+
+## Landing on a slope (Quake ClipVelocity): your velocity is deflected along
+## the ground, so falling onto a downhill slope adds forward speed. Scaled by
+## slope_boost, and only ever a gain: uphill landings keep your speed.
+func _slope_landing(v: Vector3) -> void:
+	var n := get_floor_normal()
+	var into := v.dot(n)
+	if n.y > 0.999 or into >= 0.0:
+		return
+	var clipped := v - n * into
+	var old_h := Vector2(v.x, v.z)
+	var new_h := Vector2(clipped.x, clipped.z)
+	var gain := new_h.length() - old_h.length()
+	if gain <= 0.0:
+		return
+	var h := new_h.normalized() * (old_h.length() + gain * slope_boost)
+	velocity.x = h.x
+	velocity.z = h.y
+
+
+## Steps move the body instantly; the camera eases over them instead (Quake
+## smooths stair steps the same way). Not during prediction replays, which
+## re-run ticks the camera has already been through.
+var replaying := false
+var _view_step := 0.0
+var _eye_height := 1.6
+
+
+## Where shots come from: the camera without the cosmetic step smoothing.
+func eye_position() -> Vector3:
+	return camera.global_position - Vector3.UP * _view_step
+
+
+func _add_view_step(dropped: float) -> void:
+	if not replaying and is_local:
+		_view_step = clampf(_view_step + dropped, -1.0, 1.0)
 
 
 ## Quake PM_StepSlideMove, with FTEQW's pm_airstep. Slides normally; if a
@@ -340,6 +403,7 @@ func _step_slide_move(in_air: bool) -> void:
 		return
 	if not is_nan(floor_y) and floor_y > global_position.y:
 		global_position.y = floor_y   # Sit flat on the step, not on its rounded lip.
+	_add_view_step(down_pos.y - global_position.y)
 	velocity.y = down_vel.y
 	on_floor = velocity.y <= 0.0 and (slide_floor or land != null)
 
@@ -382,7 +446,12 @@ func set_state(s: Array) -> void:
 
 func _process(delta: float) -> void:
 	var target := crouch_eye_height if crouched else stand_eye_height
-	head.position.y = move_toward(head.position.y, target, delta * 6.0)
+	_eye_height = move_toward(_eye_height, target, delta * 6.0)
+	# Ease out any step offset (about a tenth of a second).
+	_view_step *= exp(-delta / 0.1)
+	if absf(_view_step) < 0.001:
+		_view_step = 0.0
+	head.position.y = _eye_height + _view_step
 	if is_local:
 		_update_hud()
 
@@ -445,7 +514,7 @@ func _update_crouch(want: bool) -> void:
 		_apply_hull(crouch_height)
 		if not on_floor:
 			global_position.y += diff
-			head.position.y -= diff
+			_eye_height -= diff
 	elif not want and crouched:
 		if on_floor:
 			if test_move(global_transform, Vector3.UP * diff):
@@ -462,7 +531,7 @@ func _update_crouch(want: bool) -> void:
 			else:
 				crouched = false
 				global_position.y -= diff
-				head.position.y += diff
+				_eye_height += diff
 				_apply_hull(stand_height)
 
 

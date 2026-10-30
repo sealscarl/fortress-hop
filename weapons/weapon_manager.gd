@@ -35,14 +35,24 @@ var switching := 0.0
 var _reload_queued := false
 
 @onready var player: Player = get_parent()
-var _sound: AudioStreamPlayer3D
+## Your own weapon: a plain (non-positional) sound at full volume. Other
+## players' weapons: a 3D sound at their position.
+var _sound   ## AudioStreamPlayer or AudioStreamPlayer3D
 
 
 func _ready() -> void:
-	_sound = AudioStreamPlayer3D.new()
-	add_child(_sound)
 	if player.is_local:
+		_sound = AudioStreamPlayer.new()
+		_sound.max_polyphony = 4
+		add_child(_sound)
 		_build_view_model()
+	else:
+		var s3 := AudioStreamPlayer3D.new()
+		s3.unit_size = 10.0
+		s3.max_polyphony = 4
+		s3.position.y = 1.4
+		_sound = s3
+		player.add_child.call_deferred(s3)   # Must sit on the player (a 3D node) to have a position.
 
 
 func stat(slot: int, key: String) -> Variant:
@@ -161,7 +171,7 @@ func _use_round(s: int) -> void:
 
 func _fire(kind: int, cmd: PlayerCmd) -> void:
 	var cam := player.camera
-	var eye := cam.global_position
+	var eye := player.eye_position()
 	var aim := -cam.global_basis.z
 	var d: Dictionary = WeaponStats.DATA[kind]
 	Game.instance.send_all(self, "_play_fx", [kind])
