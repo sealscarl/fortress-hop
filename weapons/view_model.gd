@@ -23,7 +23,7 @@ const MODELS := {
 }
 ## Where each weapon sits: [position, rotation in degrees], centered.
 const PLACE_MODEL := {
-	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.2, -0.38), Vector3(5, 0, 0)],
+	K.ROCKET_LAUNCHER: [Vector3(0.0, -0.27, -0.24), Vector3(-2, 0, 0)],
 }
 const PLACE_PLACEHOLDER := [Vector3(0.0, -0.32, -0.55), Vector3.ZERO]
 
