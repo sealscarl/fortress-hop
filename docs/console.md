@@ -22,6 +22,9 @@ In Quake units, like QW. **Only the host can change them.** They're sent to ever
 | `pm_bunnyspeedcap` | 0 | Max horizontal speed while hopping, in ups (0 = no cap) |
 | `pm_stepheight` | 18 | Tallest step you walk up |
 | `pm_airstep` | 1 | Step up stairs in the air too (bhop up stairs) |
+| `sv_timelimit` | 30 | Game clock in minutes (0 = none) |
+| `sv_matchmode` | 0 | 1 = match mode (see docs/game_modes.md) |
+| `mp_halflength` | 10 | Match mode: minutes per half |
 | `mp_friendlyfire` | 1 | Teammates hurt and push each other; a team kill costs a frag |
 | `pm_stepdown` | 1 | Walking down stairs/slopes keeps you on the ground |
 | `pm_slopeboost` | 0.5 | Downhill landings add forward speed (0 = none, 1 = full Quake) |
@@ -54,6 +57,7 @@ Class run speeds stay per class (`player/classes.gd`).
 | `map [name]` | Host a map (`map phantom`, `map hop`); no name lists maps |
 | `status` | Connection, map, players |
 | `team red\|blue\|auto`, `class <name>`, `kill` | In game |
+| `ready`, `notready` | Match mode prematch (F3 toggles) |
 | `bind <key> [action]`, `bindlist` | QW-style binds, e.g. `bind mouse3 +jump`. Keys: letters, `space`, `shift`, `ctrl`, `f1`, `mouse1`–`mouse5`, `mwheelup`/`mwheeldown`. Actions: `+forward +back +moveleft +moveright +jump +duck +attack +gren1 +gren2 reload detpipe slot1 slot2 slot3 invnext invprev +showscores changeclass changeteam`. A key already in use swaps, like the Options menu. |
 | `echo`, `clear`, `quit` | |
 

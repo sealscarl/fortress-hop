@@ -50,6 +50,7 @@ const ACTIONS := [
 	["scoreboard", "Scoreboard"],
 	["change_class", "Change class"],
 	["change_team", "Change team"],
+	["ready_up", "Ready up (match mode)"],
 ]
 
 var values := DEFAULTS.duplicate()
@@ -151,7 +152,7 @@ func _apply(key: String) -> void:
 				_fps_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 				_fps_label.offset_left = -80
 				_fps_label.offset_right = 80
-				_fps_label.offset_top = 2
+				_fps_label.offset_top = 48   # Under the game clock.
 				_fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 				_fps_label.add_theme_constant_override("outline_size", 6)
 				_fps_label.add_theme_color_override("font_outline_color", Color.BLACK)

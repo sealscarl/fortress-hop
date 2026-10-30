@@ -257,6 +257,9 @@ func build_cmd(seq: int) -> PlayerCmd:
 func simulate(cmd: PlayerCmd, delta: float) -> void:
 	rotation.y = cmd.yaw
 	head.rotation.x = cmd.pitch
+	if Game.instance and Game.instance.match_state and Game.instance.match_state.frozen():
+		velocity = Vector3.ZERO   # Countdowns: frozen in place (you can still look).
+		return
 	_update_crouch(cmd.has(PlayerCmd.CROUCH))
 
 	var wish_dir := transform.basis * Vector3(cmd.move.x, 0.0, cmd.move.y)
@@ -621,6 +624,4 @@ func respawn() -> void:
 
 func _update_hud() -> void:
 	var speed := Vector2(velocity.x, velocity.z).length()
-	speed_label.text = "%d ups\n%.1f m/s%s" % [
-		roundi(speed * QUAKE_UNITS_PER_METER), speed,
-		"\nAUTO-HOP" if auto_hop else ""]
+	speed_label.text = "%.1f m/s" % speed

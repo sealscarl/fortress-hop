@@ -86,6 +86,14 @@ func _ready() -> void:
 	refill()
 
 
+## Server: forget a primed grenade without it going off (match restarts).
+func cancel_held() -> void:
+	held_type = -1
+	timer_type = -1
+	timer_left = 0.0
+	changed.emit()
+
+
 func refill() -> void:
 	frags = max_frags
 	concs = max_concs

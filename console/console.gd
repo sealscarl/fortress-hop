@@ -36,6 +36,9 @@ const SERVER_VARS := {
 	"tf_rocket_selfpush": [0.8, "Share of rocket push you get yourself (rocket jump strength)", "", 1.0],
 	"tf_flagthrow_speed": [400.0, "Flag throw speed along your aim (ups)", "", 1.0],
 	"tf_flagthrow_up": [200.0, "Extra upward speed on a flag throw (ups)", "", 1.0],
+	"sv_timelimit": [30.0, "Game clock in minutes (public play). 0 = no limit", "", 1.0],
+	"sv_matchmode": [0.0, "1 = match mode: prematch, ready up (F3), two halves with swapped offense", "", 1.0],
+	"mp_halflength": [10.0, "Match mode: minutes per half", "", 1.0],
 	"mp_friendlyfire": [1.0, "1 = teammates can hurt and push each other (team kills cost a frag)", "", 1.0],
 	"pm_stepdown": [1.0, "1 = walking down stairs/slopes keeps you on the ground", "step_down", 0.0],
 	"pm_slopeboost": [0.5, "Landing on a downhill slope adds forward speed (0 = none, 1 = full Quake)", "slope_boost", 1.0],
@@ -64,6 +67,7 @@ const ACTION_ALIASES := {
 	"slot1": "weapon_1", "slot2": "weapon_2", "slot3": "weapon_3",
 	"invnext": "weapon_next", "invprev": "weapon_prev", "+showscores": "scoreboard",
 	"changeclass": "change_class", "changeteam": "change_team", "throwflag": "throw_flag",
+	"readyup": "ready_up",
 }
 
 const MAX_LINES := 400
@@ -526,6 +530,12 @@ func _register_commands() -> void:
 			for id in Game.instance.scores:
 				var s: Dictionary = Game.instance.scores[id]
 				print_line("  %-24s %d kills  %d deaths" % [_escape(s.name), s.kills, s.deaths]))
+	_cmd("ready", "Match mode prematch: ready up (F3 toggles)", func(_a):
+		if Game.instance: Game.instance.request_ready_up(1)
+		else: print_line("Not in a game."))
+	_cmd("notready", "Match mode prematch: cancel ready", func(_a):
+		if Game.instance: Game.instance.request_ready_up(0)
+		else: print_line("Not in a game."))
 	_cmd("kill", "Respawn (suicide)", func(_a):
 		if Game.instance: Game.instance.request_kill()
 		else: print_line("Not in a game."))

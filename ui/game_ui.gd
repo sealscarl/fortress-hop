@@ -16,6 +16,8 @@ var _message: Label
 var _message_time := 0.0
 var _status: RichTextLabel
 var _status_box: VBoxContainer
+var _clock: Label
+var _ready_prompt: Label
 var _status_rows: Array[HBoxContainer] = []
 var _carry: Label
 var _pause: Control
@@ -96,6 +98,33 @@ func _ready() -> void:
 	_carry.add_theme_color_override("font_outline_color", Color.BLACK)
 	_carry.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_carry)
+	# Game clock / match phase, top center.
+	_clock = Label.new()
+	_clock.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_clock.offset_left = -400
+	_clock.offset_right = 400
+	_clock.offset_top = 6
+	_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock.add_theme_font_size_override("font_size", 28)
+	_clock.add_theme_constant_override("outline_size", 8)
+	_clock.add_theme_color_override("font_outline_color", Color.BLACK)
+	_clock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_clock)
+
+	# Match prematch: ready-up prompt, below the crosshair.
+	_ready_prompt = Label.new()
+	_ready_prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_ready_prompt.offset_left = -500
+	_ready_prompt.offset_right = 500
+	_ready_prompt.offset_top = 90
+	_ready_prompt.offset_bottom = 170
+	_ready_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_ready_prompt.add_theme_font_size_override("font_size", 24)
+	_ready_prompt.add_theme_constant_override("outline_size", 8)
+	_ready_prompt.add_theme_color_override("font_outline_color", Color.BLACK)
+	_ready_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_ready_prompt)
+
 	# Menus and the scoreboard draw over the messages and status.
 	for panel in [_scoreboard, _team_panel, _class_panel, _pause]:
 		move_child(panel, -1)
@@ -129,6 +158,14 @@ func _process(_delta: float) -> void:
 		_carry.text = carrying
 		_carry.modulate = TEAM_COLORS[1 - me.team] if carrying else Color.WHITE
 	_scoreboard.visible = Input.is_action_pressed("scoreboard") and not Console.is_open()
+	var ms: MatchState = Game.instance.match_state if Game.instance else null
+	if ms:
+		_clock.text = ms.hud_line()
+		var low := ms.time_left >= 0.0 and ms.time_left < 60.0 and ms.counting()
+		_clock.modulate = Color(1.0, 0.45, 0.35) if low else Color.WHITE
+		_ready_prompt.text = ms.ready_prompt(multiplayer.get_unique_id())
+		var am_ready := multiplayer.get_unique_id() in ms.ready_peers
+		_ready_prompt.modulate = Color(0.55, 1.0, 0.55) if am_ready else Color(1.0, 0.85, 0.35)
 	if _scoreboard.visible:
 		_refresh_scoreboard()
 
@@ -143,7 +180,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pick_class(n)
 			get_viewport().set_input_as_handled()
 			return
-	if event.is_action_pressed("change_class"):
+	if event.is_action_pressed("ready_up"):
+		Game.instance.request_ready_up()
+	elif event.is_action_pressed("change_class"):
 		_toggle(_class_panel)
 	elif event.is_action_pressed("change_team"):
 		_toggle(_team_panel)

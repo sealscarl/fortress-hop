@@ -359,24 +359,25 @@ func _physics_process(delta: float) -> void:
 	var living := _living_players()
 	for p in living:
 		var pbox := _player_box(p)
-		# Lasers and spawn protection.
+		# Lasers and spawn protection (harmless in match prematch).
+		var deadly := _rules() == null or _rules().lasers_kill()
 		for l in lasers:
-			if l.node.visible and p.team == l.kill_team and pbox.intersects(l.box):
+			if deadly and l.node.visible and p.team == l.kill_team and pbox.intersects(l.box):
 				_laser_kill(p, l.msg)
 		for z in kill_zones:
-			if p.alive and p.team == z.kill_team and pbox.intersects(z.box):
+			if deadly and p.alive and p.team == z.kill_team and pbox.intersects(z.box):
 				_laser_kill(p, z.msg)
 		if not p.alive:
 			continue
 		# Flags.
 		for f in flags:
-			if f.state != FlagState.CARRIED and p.team == f.takers \
+			if f.state != FlagState.CARRIED and p.team == f.takers and _flags_open(p.team) \
 					and not (f.lock_left > 0.0 and f.lock_peer == p.peer_id) \
 					and pbox.intersects(AABB(f.pos - Vector3(0.6, 0, 0.6), Vector3(1.2, 1.8, 1.2))):
 				_take_flag(f, p)
 				changed = true
 		for f in flags:
-			if f.carrier == p:
+			if f.carrier == p and _flags_open(p.team):
 				for c in captures:
 					if c.team == p.team and c.flag_goal == f.goal_no and pbox.intersects(c.box):
 						_capture(f, p, c)
@@ -422,6 +423,32 @@ func _physics_process(delta: float) -> void:
 		_sync_timer = 1.0
 		send_all("_state", [_state_array()], false)
 	_update_visuals()
+
+
+## The game clock / match rules (net/match_state.gd), if there is a game.
+func _rules() -> MatchState:
+	return Game.instance.match_state if Game.instance else null
+
+
+## Whether this team may take and capture flags right now (match mode: only
+## the attacking team, and not in prematch).
+func _flags_open(team: int) -> bool:
+	return _rules() == null or _rules().can_take_flag(team)
+
+
+## Server: everything back to the start of a game: flags home, security
+## online, packs back, and (unless keep_scores) team scores zero.
+func reset_objectives(keep_scores := false) -> void:
+	for f in flags:
+		_return_flag(f, "", false)
+	for s in securities:
+		s.offline_left = 0.0
+		_set_lasers(s.group, true)
+	for k in packs:
+		k.respawn_left = 0.0
+	if not keep_scores:
+		team_scores = [0, 0]
+	send_all("_state", [_state_array()], false)
 
 
 func _laser_kill(p: Player, msg: String) -> void:

@@ -66,7 +66,14 @@ func _enter_tree() -> void:
 	instance = self
 
 
+## Game clock and match mode (net/match_state.gd).
+var match_state: MatchState
+
+
 func _ready() -> void:
+	match_state = MatchState.new()
+	match_state.name = "Match"
+	add_child(match_state)
 	if not (multiplayer.is_server() and get_node("/root/Net").dedicated):
 		ui = GAME_UI.new()
 		add_child(ui)
@@ -99,6 +106,7 @@ func _client_ready(player_name: String) -> void:
 		return
 	ready_peers.append(id)
 	Console.send_server_vars_to(id)   # Movement settings first, so prediction matches.
+	match_state.send_state_to(id)
 	# Everyone already here, then the newcomer for everyone.
 	var all := []
 	for p: Player in players_root.get_children():
@@ -215,9 +223,10 @@ func _server_tick_players(delta: float) -> void:
 			var cmd := p.build_cmd(_seq)
 			cmd.view_tick = tick   # The host sees everyone live.
 			p.simulate(cmd, delta)
-			p.grenades.tick(cmd, delta)
-			p.weapons.tick(cmd, delta)
-			_flag_input(p, cmd)
+			if not match_state.frozen():
+				p.grenades.tick(cmd, delta)
+				p.weapons.tick(cmd, delta)
+				_flag_input(p, cmd)
 			continue
 		var q: Array = _cmd_queue.get(p.peer_id, [])
 		var n := 0
@@ -228,9 +237,10 @@ func _server_tick_players(delta: float) -> void:
 			if not p.alive:
 				continue  # Dead or still picking a class: drop the input.
 			p.simulate(cmd, delta)
-			p.grenades.tick(cmd, delta)
-			p.weapons.tick(cmd, delta)
-			_flag_input(p, cmd)
+			if not match_state.frozen():
+				p.grenades.tick(cmd, delta)
+				p.weapons.tick(cmd, delta)
+				_flag_input(p, cmd)
 	_flush_damage_numbers()
 	_scores_sync_left -= delta
 	if _scores_dirty and _scores_sync_left <= 0.0:
@@ -246,6 +256,8 @@ var _scores_sync_left := 0.0
 ## Server: add to a scoreboard stat (damage, touches, carry, caps). Sent to
 ## everyone at most twice a second.
 func add_stat(peer: int, key: String, amount: float) -> void:
+	if not match_state.counting():
+		return   # Prematch and end screens don't count.
 	if scores.has(peer):
 		scores[peer][key] = scores[peer].get(key, 0) + amount
 		_scores_dirty = true
@@ -649,6 +661,35 @@ func _do_kill(peer: int) -> void:
 		p.die(p)
 
 
+## Server: zero everyone's scoreboard stats (new game / match).
+func reset_stats() -> void:
+	for id in scores:
+		var sc: Dictionary = scores[id]
+		for k in ["kills", "deaths", "touches", "caps"]:
+			sc[k] = 0
+		sc.damage = 0.0
+		sc.carry = 0.0
+	send_all(self, "_sync_scores", [scores])
+
+
+## F3 / console "ready": toggle (or set) ready in match prematch.
+func request_ready_up(value := -1) -> void:
+	if multiplayer.is_server():
+		_do_ready(1, value)
+	else:
+		_request_ready_up.rpc_id(1, value)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_ready_up(value: int) -> void:
+	_do_ready(multiplayer.get_remote_sender_id(), value)
+
+
+func _do_ready(peer: int, value: int) -> void:
+	var now: bool = peer in match_state.ready_peers
+	match_state.set_ready(peer, not now if value == -1 else value == 1)
+
+
 ## Server cvar mp_friendlyfire: teammates hurt (and push) each other.
 static func friendly_fire() -> bool:
 	return Console.sv("mp_friendlyfire") != 0.0
@@ -700,12 +741,13 @@ func _do_class(peer: int, c: int) -> void:
 
 ## Server: someone died. Count it and tell everyone.
 func on_death(victim: Player, killer: Player) -> void:
-	if scores.has(victim.peer_id):
-		scores[victim.peer_id].deaths += 1
 	var teamkill := killer != null and killer != victim and killer.team == victim.team
-	if killer and killer != victim and scores.has(killer.peer_id):
-		scores[killer.peer_id].kills += -1 if teamkill else 1   # TF: a team kill costs a frag.
-	send_all(self, "_sync_scores", [scores])
+	if match_state.counting():
+		if scores.has(victim.peer_id):
+			scores[victim.peer_id].deaths += 1
+		if killer and killer != victim and scores.has(killer.peer_id):
+			scores[killer.peer_id].kills += -1 if teamkill else 1   # TF: a team kill costs a frag.
+		send_all(self, "_sync_scores", [scores])
 	var kname: String = scores[killer.peer_id].name if killer and scores.has(killer.peer_id) else ""
 	var vname: String = scores[victim.peer_id].name if scores.has(victim.peer_id) else "?"
 	var weapon: String = victim.last_weapon if victim.last_weapon != "" else "skull"
