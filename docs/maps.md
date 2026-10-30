@@ -55,7 +55,7 @@ TF teams: `team_no 1` = Blue, `2` = Red (ours: Red = 0, Blue = 1). Goal boxes us
 | `item_tfgoal` with `owned_by` | A **flag**: `team_no` may take it, returns home after `pausetime` s when dropped, `message` shown to the taker |
 
 | `info_tfgoal` with `items_allowed` | A **capture point** for the flag with that `goal_no`; `increase_team1/2` points; `target` = refill on capture |
-| `func_button` → `targetname` goal with `remove_group_no` + `activate_goal_no` → goal with `delay_time`, `restore_group_no`, `netname` | A **security system**: the button (pressable by its `team_no`) takes the laser group offline for `delay_time` s; HUD shows "NETNAME: online / OFFLINE n" |
+| `func_button` → `targetname` goal with `remove_group_no` + `activate_goal_no` → goal with `delay_time`, `restore_group_no`, `netname` | A **security system**: the button (pressable by its `team_no`) takes the laser group offline for `delay_time` s; HUD shows a team-colored button icon: "Security online" or a blinking "OFFLINE n" |
 | `info_tfgoal` with a `*laser*` model, `group_no`, kill effect | **Security lasers**: kill the `team_no` team while online |
 | `info_tfgoal` with a `*laser*` model and no group, and `netname "kill"` goals | **Spawn protection**: kills the `team_no` team |
 | `info_tfgoal` with a `*backpack*` model | **Supply pack** for `team_no`: full resupply (`999` ammo), ammo (half your reserve), or grenades; respawns after `wait` s |

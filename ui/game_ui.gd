@@ -10,12 +10,13 @@ const TEAM_COLORS := PlayerClasses.TEAM_COLORS
 var _team_panel: Control
 var _class_panel: Control
 var _scoreboard: Control
-var _score_text: RichTextLabel
 var _feed: VBoxContainer
 var _opened_for_join := false
 var _message: Label
 var _message_time := 0.0
 var _status: RichTextLabel
+var _status_box: VBoxContainer
+var _status_rows: Array[HBoxContainer] = []
 var _carry: Label
 var _pause: Control
 var _options: OptionsMenu
@@ -64,17 +65,22 @@ func _ready() -> void:
 	add_child(_message)
 
 	# Map status (flags, security, team scores), top left.
+	_status_box = VBoxContainer.new()
+	_status_box.position = Vector2(24, 20)
+	_status_box.add_theme_constant_override("separation", 2)
+	_status_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_status_box)
 	_status = RichTextLabel.new()
 	_status.bbcode_enabled = true
 	_status.fit_content = true
 	_status.scroll_active = false
-	_status.position = Vector2(24, 20)
-	_status.custom_minimum_size = Vector2(520, 0)
-	_status.add_theme_font_size_override("normal_font_size", 18)
+	_status.custom_minimum_size = Vector2(420, 0)
+	_status.add_theme_font_size_override("normal_font_size", 20)
+	_status.add_theme_font_size_override("bold_font_size", 20)
 	_status.add_theme_constant_override("outline_size", 6)
 	_status.add_theme_color_override("font_outline_color", Color.BLACK)
 	_status.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_status)
+	_status_box.add_child(_status)
 
 	# "YOU HAVE THE FLAG" above the bottom HUD.
 	_carry = Label.new()
@@ -89,6 +95,9 @@ func _ready() -> void:
 	_carry.add_theme_color_override("font_outline_color", Color.BLACK)
 	_carry.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_carry)
+	# Menus and the scoreboard draw over the messages and status.
+	for panel in [_scoreboard, _team_panel, _class_panel, _pause]:
+		move_child(panel, -1)
 
 
 func show_message(text: String) -> void:
@@ -110,7 +119,8 @@ func _process(_delta: float) -> void:
 	if ml and me:
 		var head := "[b][color=#%s]RED %d[/color]  —  [color=#%s]BLUE %d[/color][/b]\n" % [
 			TEAM_COLORS[0].to_html(false), ml.team_scores[0], TEAM_COLORS[1].to_html(false), ml.team_scores[1]]
-		_status.text = head + "\n".join(ml.status_lines())
+		_status.text = head.strip_edges()
+		_update_status_rows(ml.status_entries())
 		var carrying := ""
 		for f in ml.flags:
 			if f.carrier == me:
@@ -264,22 +274,65 @@ func _pick_class(id: int) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+# --- Map status (flags, security), top left -----------------------------------
+
+func _update_status_rows(entries: Array[Dictionary]) -> void:
+	while _status_rows.size() < entries.size():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(30, 30)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
+		var l := Label.new()
+		l.add_theme_font_size_override("font_size", 19)
+		l.add_theme_constant_override("outline_size", 6)
+		l.add_theme_color_override("font_outline_color", Color.BLACK)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(l)
+		_status_box.add_child(row)
+		_status_rows.append(row)
+	for i in _status_rows.size():
+		var row := _status_rows[i]
+		row.visible = i < entries.size()
+		if not row.visible:
+			continue
+		var e: Dictionary = entries[i]
+		var color: Color = TEAM_COLORS[e.team]
+		var icon := row.get_child(0) as TextureRect
+		icon.texture = HudIcons.flag(color) if e.icon == "flag" else HudIcons.button(color)
+		# Offline security: the button greys out and blinks.
+		icon.modulate = Color(0.45, 0.45, 0.45, 0.5 + 0.5 * absf(sin(Time.get_ticks_msec() / 250.0))) \
+			if e.dim else Color.WHITE
+		var l := row.get_child(1) as Label
+		l.text = e.text
+		l.modulate = e.color
+
+
 # --- Scoreboard -----------------------------------------------------------------
+
+const _SCORE_COLS := [["NAME", 300, HORIZONTAL_ALIGNMENT_LEFT], ["CLASS", 150, HORIZONTAL_ALIGNMENT_LEFT],
+	["KILLS", 90, HORIZONTAL_ALIGNMENT_RIGHT], ["DEATHS", 100, HORIZONTAL_ALIGNMENT_RIGHT]]
+
+var _score_box: VBoxContainer
+var _score_sig := ""
+
 
 func _make_scoreboard() -> Control:
 	var box := _panel("SCOREBOARD")
-	_score_text = RichTextLabel.new()
-	_score_text.bbcode_enabled = true
-	_score_text.fit_content = true
-	_score_text.custom_minimum_size = Vector2(760, 0)
-	_score_text.add_theme_font_size_override("normal_font_size", 18)
-	_score_text.add_theme_font_size_override("bold_font_size", 20)
-	box.add_child(_score_text)
+	_score_box = VBoxContainer.new()
+	_score_box.add_theme_constant_override("separation", 4)
+	_score_box.custom_minimum_size = Vector2(660, 0)
+	box.add_child(_score_box)
 	var root := box.get_parent().get_parent()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return root
 
 
+## One table per team: a header row and a row per player, in a grid so every
+## column lines up. Rebuilt only when something on it changes.
 func _refresh_scoreboard() -> void:
 	var g := Game.instance
 	var rows := [[], []]
@@ -287,23 +340,53 @@ func _refresh_scoreboard() -> void:
 		var sc: Dictionary = g.scores.get(p.peer_id, {"name": "?", "kills": 0, "deaths": 0})
 		rows[p.team].append([sc.kills, sc.deaths, sc.name,
 			PlayerClasses.stat(p.class_id, "name") if p.class_id != -1 else "—", p == g.local_player])
-	var text := ""
+	var points := [0, 0]
+	if MapLogic.instance:
+		points = MapLogic.instance.team_scores
 	for t in 2:
 		rows[t].sort_custom(func(a, b): return a[0] > b[0])
+	var sig := str(rows) + str(points)
+	if sig == _score_sig:
+		return
+	_score_sig = sig
+	for c in _score_box.get_children():
+		c.queue_free()
+	for t in 2:
 		var total := 0
 		for r in rows[t]:
 			total += r[0]
-		var team_score := ""
-		if MapLogic.instance:
-			team_score = "%d points  ·  " % MapLogic.instance.team_scores[t]
-		text += "[b][color=#%s]%s  —  %s%d kills[/color][/b]\n" % [TEAM_COLORS[t].to_html(false),
-			PlayerClasses.TEAM_NAMES[t].to_upper(), team_score, total]
-		text += "[color=#999999]%-24s %-10s %6s %6s[/color]\n" % ["NAME", "CLASS", "KILLS", "DEATHS"]
+		var title := _cell("%s  —  %d points  ·  %d kills" % [PlayerClasses.TEAM_NAMES[t].to_upper(), points[t], total],
+			0, HORIZONTAL_ALIGNMENT_LEFT, TEAM_COLORS[t], 22)
+		if t == 1:
+			var gap := Control.new()
+			gap.custom_minimum_size = Vector2(0, 12)
+			_score_box.add_child(gap)
+		_score_box.add_child(title)
+		var grid := GridContainer.new()
+		grid.columns = _SCORE_COLS.size()
+		grid.add_theme_constant_override("h_separation", 12)
+		grid.add_theme_constant_override("v_separation", 2)
+		_score_box.add_child(grid)
+		for col in _SCORE_COLS:
+			grid.add_child(_cell(col[0], col[1], col[2], Color(0.6, 0.62, 0.66), 15))
 		for r in rows[t]:
-			var line := "%-24s %-10s %6d %6d" % [r[2], r[3], r[0], r[1]]
-			text += ("[b]%s[/b]\n" % line) if r[4] else line + "\n"
-		text += "\n"
-	_score_text.text = "[code]" + text + "[/code]"
+			var me: bool = r[4]
+			var color := Color(1.0, 0.92, 0.6) if me else Color.WHITE
+			var vals := [r[2], r[3], str(r[0]), str(r[1])]
+			for i in vals.size():
+				grid.add_child(_cell(vals[i], _SCORE_COLS[i][1], _SCORE_COLS[i][2], color, 19))
+
+
+func _cell(text: String, width: int, align: HorizontalAlignment, color: Color, size: int) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.custom_minimum_size = Vector2(width, 0)
+	l.horizontal_alignment = align
+	l.clip_text = true
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	l.add_theme_font_size_override("font_size", size)
+	l.modulate = color
+	return l
 
 
 # --- Kill feed -------------------------------------------------------------------

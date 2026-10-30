@@ -750,17 +750,22 @@ func _play(sound: String) -> void:
 		_sound.play()
 
 
-## For the HUD: one line per flag and security system.
-func status_lines() -> Array[String]:
-	var lines: Array[String] = []
+## For the HUD: one entry per flag and security system (icon, team, text).
+func status_entries() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for f in flags:
-		var where := "HOME"
+		var line := "Home"
+		var col := Color(0.85, 0.9, 0.85)
 		if f.state == FlagState.CARRIED:
-			where = "TAKEN by %s" % (_name(f.carrier) if is_instance_valid(f.carrier) else "?")
+			line = "Taken by %s" % (_name(f.carrier) if is_instance_valid(f.carrier) else "?")
+			col = Color(1.0, 0.8, 0.35)
 		elif f.state == FlagState.DROPPED:
-			where = "DROPPED  returns in %d" % ceili(f.return_left)
-		lines.append("[color=#%s]%s:[/color] %s" % [PlayerClasses.TEAM_COLORS[f.owner].to_html(false), f.name.to_upper(), where])
-	for s in securities:
-		var st := "[color=#ff6655]OFFLINE %d[/color]" % ceili(s.offline_left) if s.offline_left > 0.0 else "online"
-		lines.append("[color=#%s]%s:[/color] %s" % [PlayerClasses.TEAM_COLORS[s.owner].to_html(false), s.name.to_upper(), st])
-	return lines
+			line = "Dropped  ·  returns in %d" % ceili(f.return_left)
+			col = Color(1.0, 0.55, 0.4)
+		out.append({"icon": "flag", "team": f.owner, "text": line, "color": col, "dim": false})
+	for sec in securities:
+		var down: bool = sec.offline_left > 0.0
+		out.append({"icon": "button", "team": sec.owner,
+			"text": "OFFLINE  %d" % ceili(sec.offline_left) if down else "Security online",
+			"color": Color(1.0, 0.4, 0.33) if down else Color(0.85, 0.9, 0.85), "dim": down})
+	return out
