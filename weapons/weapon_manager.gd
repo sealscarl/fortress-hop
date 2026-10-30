@@ -250,58 +250,23 @@ func _play_fx(which: int) -> void:
 			_sound.stream = SWITCH_SOUND
 			_sound.pitch_scale = 1.0
 			_sound.volume_db = -6.0
-	if which < _FX_RELOAD and player.is_local:
-		_kick = 1.0 if which != K.NAILGUN and which != K.SUPER_NAILGUN else 0.3
+	if which < _FX_RELOAD and _view:
+		_view.fired(which)
 	_sound.play()
 
 
-# --- Placeholder view model (local player only) -------------------------------
+# --- First-person weapon (local player only): weapons/view_model.gd ----------
 
-var _view: Node3D
-var _view_mesh: MeshInstance3D
-var _kick := 0.0
-var _shown := -1
-var _dip := 0.0
+var _view: ViewModel
 
 
 func _build_view_model() -> void:
-	_view = Node3D.new()
-	player.get_node("Head/Camera3D").add_child(_view)
-	_view_mesh = MeshInstance3D.new()
-	_view_mesh.rotation.x = deg_to_rad(90)
-	_view_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_view.add_child(_view_mesh)
+	_view = ViewModel.new()
+	_view.name = "ViewModelDriver"
+	add_child(_view)
+	_view.setup(self)
 
 
 func _process(delta: float) -> void:
 	if not multiplayer.is_server():
 		switching = maxf(switching - delta, 0.0)
-	if _view == null:
-		return
-	var kind := current_kind()
-	if _shown != kind:
-		_shown = kind
-		_view.visible = kind != -1
-		if kind != -1:
-			var v: Array = WeaponStats.get_stat(kind, "view")
-			var mesh := CylinderMesh.new()
-			mesh.top_radius = v[1]
-			mesh.bottom_radius = v[1]
-			mesh.height = v[2]
-			_view_mesh.mesh = mesh
-			var m := StandardMaterial3D.new()
-			m.albedo_color = v[0]
-			m.roughness = 0.6
-			_view_mesh.material_override = m
-	# Lowered while switching or reloading, kicks back when firing.
-	var target_dip := 0.18 if switching > 0.0 else (0.08 if reloading else 0.0)
-	_dip = move_toward(_dip, target_dip, delta * 1.5)
-	_kick = move_toward(_kick, 0.0, delta * 6.0)
-	# Weapon position (Options / cl_hand): centered, right or left. Left is a
-	# mirror image, so asymmetric models flip the right way.
-	var hand: int = Settings.get_option("hand")
-	var side := 0.0 if hand == 0 else (0.28 if hand == 1 else -0.28)
-	var base_y := -0.32 if hand == 0 else -0.26
-	_view.position = Vector3(side, base_y - _dip, -0.55 + _kick * 0.08)
-	_view.rotation.x = _kick * 0.12 - _dip * 1.5
-	_view.scale.x = -1.0 if hand == 2 else 1.0

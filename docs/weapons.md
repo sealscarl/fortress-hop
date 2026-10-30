@@ -95,3 +95,16 @@ Melee, 1.8 m reach, 0.4 s per swing. Heals a teammate 25 (up to their max health
 ## Placeholders
 
 The view model is a simple tube (rocket launcher) or barrel (shotgun) that dips while reloading or switching and kicks when firing. Other players don't show a weapon yet. Firing sounds and effects come from the server, so over a real connection they lag by one round trip.
+
+## First-person weapons (`weapons/view_model.gd`)
+
+- Drawn by a second camera on render layer 20, overlaid on the world: the weapon never pokes through walls, and it always uses fov 90 (73.74° vertical) whatever your FOV setting, so it doesn't stretch at fov 120. Same 3D world, so map lights light it.
+- Weapons with a model play its animations, driven by the real weapon state: `draw` on switch, `idle` loop, `fire` on every shot, and `reload_start` → `reload_insert` (once per round, as each round lands) → `reload_end`. Firing mid-reload cuts straight to `fire`.
+- Sleeves (material named `Sleeve`) take your team color.
+- Weapon position (Options / `cl_hand`): right, centered, or left (a mirror image). Placement per weapon in `PLACE_MODEL`.
+- Models so far: **rocket launcher** (`weapons/models/rocket_launcher.glb`, built by `tools/models/rocket_launcher.py` in Blender: gloved hands, muzzle-loading reload). Other weapons still use placeholder cylinders.
+
+### Rebuilding a model
+
+1. Install Blender (or `pip install bpy`), then run `python tools/models/rocket_launcher.py` (or `blender -b -P tools/models/rocket_launcher.py`). It writes `weapons/models/rocket_launcher.glb`.
+2. Godot re-imports it automatically. Animation names must stay the same.
