@@ -5,7 +5,8 @@ extends RefCounted
 ##
 ## - explosion(): rockets, frag grenades, Demoman grenades and pipes. A white
 ##   flash, a rolling fireball, sparks thrown out with gravity, dark smoke
-##   that rises and spreads for a couple of seconds, and a flickering light.
+##   that rises and fades in about a second, and a flickering light.
+##   Smoke is kept short so a busy fight doesn't fog up the view.
 ## - concussion(): conc grenades. Not fire: a quick blue flash and a
 ##   shockwave ring that spreads to the blast radius.
 ## - rocket_trail(): a hot exhaust flame plus a smoke trail that hangs in the
@@ -194,7 +195,7 @@ static func explosion(scene: Node, origin: Vector3, radius: float) -> void:
 	_burst(scene, sparks, origin)
 
 	# 4. Smoke: starts a moment later, dark, rises and spreads, then thins out.
-	var smoke := _particles(20, 3.2, 2.8 * s, puff_texture(), false, true)
+	var smoke := _particles(16, 1.2, 2.6 * s, puff_texture(), false, true)
 	var km := ParticleProcessMaterial.new()
 	km.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	km.emission_sphere_radius = 0.6 * s
@@ -214,8 +215,8 @@ static func explosion(scene: Node, origin: Vector3, radius: float) -> void:
 	km.scale_max = 1.3
 	km.scale_curve = _curve([Vector2(0, 0.5), Vector2(1, 1.6)])
 	km.color_ramp = _ramp([
-		[0.0, Color(0.12, 0.1, 0.09, 0.0)], [0.08, Color(0.14, 0.12, 0.11, 0.9)],
-		[0.45, Color(0.24, 0.23, 0.22, 0.6)], [1.0, Color(0.35, 0.35, 0.35, 0.0)]])
+		[0.0, Color(0.12, 0.1, 0.09, 0.0)], [0.1, Color(0.14, 0.12, 0.11, 0.75)],
+		[0.45, Color(0.24, 0.23, 0.22, 0.4)], [1.0, Color(0.35, 0.35, 0.35, 0.0)]])
 	smoke.process_material = km
 	_burst(scene, smoke, origin)
 	smoke.explosiveness = 0.8
@@ -287,7 +288,7 @@ static func concussion(scene: Node, origin: Vector3, radius: float) -> void:
 ## fades out.
 static func rocket_trail(rocket: Node3D) -> GPUParticles3D:
 	# Smoke trail: puffs left behind in the air, grey, spreading and fading.
-	var smoke := _particles(320, 2.0, 0.45, puff_texture(), false, true)
+	var smoke := _particles(130, 0.8, 0.45, puff_texture(), false, true)
 	var m := ParticleProcessMaterial.new()
 	# A thin box the rocket stretches each frame over the distance it just
 	# flew, so the trail is continuous at any frame rate.
